@@ -5,7 +5,9 @@
 #include "DTest.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <python3.7m/Python.h>
+#include <python3.6/Python.h>
+#include <libxml2/libxml/parser.h>
+#include <libxml2/libxml/tree.h>
 
 enum systemTypes {
     Rhino = 0, OpenCasCade = 1, OpenSCAD = 2
@@ -26,9 +28,20 @@ Template readTemplate(char *filename, char *testName) {
     return out;
 }
 
+Template readTemplate2(char *filename, char *testName) {
+    xmlDocPtr doc;
+    doc = xmlReadFile(filename, NULL, 0);
+    if (doc == NULL) {
+        fprintf(stderr, "failed to parse the including file\n");
+        exit(1);
+    }
+    Template out;
+    xmlFreeDoc(doc);
+    return out;
+}
+
 Properties startConfigureScript(Template template) {
     Properties prop1;
-    // TODO: Make http requests to find the properties of the two models
     if (template.system == OpenCasCade) {
         PyObject *pName, *pModule, *pFunc;
         PyObject *pArgs, *pValue, *pArg1, *pArg2, *pArg3;
@@ -120,35 +133,84 @@ Properties startConfigureScript(Template template) {
     else if (template.system == Rhino) {
 
     }
-    fprintf(stderr, "System not recognized, aborting\n");
+    else if (template.system == OpenSCAD) {
+
+    }
+    else
+        fprintf(stderr, "System not recognized, aborting\n");
     exit(1);
 }
 
 int setTolerance(float tol) {
     tolerance = tol;
-    if (tolerance == tol)
-        return 0;
-    else
-        return 1;
+    return 0;
 }
 
 float getTolerance() {
     return tolerance;
 }
 
-int performEvaluation(Properties p1, Properties p2) {
-    // TODO: Call the evaluation scripts
+int performEvaluation(Properties p1, Properties p2, char* testName, Template temp1, Template temp2) {
+    FILE *fp = fopen(testName, "w");
+    if (fp == NULL) {
+        fprintf(stderr, "Failed to open file to perform evaluation for test %s\n", testName);
+        exit(1);
+    }
+    fprintf(fp, "Running test %s on model 1 %s and model 2 %s:\n\n", testName, temp1.model, temp2.model);
+    char *systems[3] = {"Rhino", "OpenCasCade", "OpenSCAD"};
+
+    char vol_report[64]; // NOTE: Max buffer size of 64 characters here
+    if (__fabs(p1.volume - p2.volume) < pow(getTolerance(), 3))
+        sprintf(vol_report, "Systems %s and %s have compatible volumes with a difference of %f\n",
+                systems[temp1.system], systems[temp2.system], p1.volume - p2.volume);
+    else
+        sprintf(vol_report, "Systems %s and %s have incompatible volumes with a difference of %f\n",
+                systems[temp1.system], systems[temp2.system], p1.volume - p2.volume);
+
+    char area_report[64];
+    if (__fabs(p1.surfaceArea - p2.surfaceArea) < pow(getTolerance(), 2))
+        sprintf(area_report, "Systems %s and %s have compatible areas with a difference of %f\n",
+                systems[temp1.system], systems[temp2.system], p1.surfaceArea - p2.surfaceArea);
+    else
+        sprintf(area_report, "Systems %s and %s have incompatible areas with a difference of %f\n",
+                systems[temp1.system], systems[temp2.system], p1.surfaceArea - p2.surfaceArea);
+
+    // How exactly are we comparing Hausdorff Distances? Are we looking at the distance between the two proxy models?
+    // for now the evaluation just won't make much sense
+    char dist_report[64];
+    if (__fabs(p1.hausdorffDistance - p2.hausdorffDistance) < getTolerance())
+        sprintf(dist_report, "Systems %s and %s have compatible distances with a difference of %f\n",
+                systems[temp1.system], systems[temp2.system], p1.hausdorffDistance - p2.hausdorffDistance);
+    else
+        sprintf(dist_report, "Systems %s and %s have incompatible distances with a difference of %f\n",
+                systems[temp1.system], systems[temp2.system], p1.hausdorffDistance - p2.hausdorffDistance);
+
+    fprintf(fp, "Volume:\n%s\nSurface Area:\n%s\nHausdorff Distance:\n%s", vol_report, area_report, dist_report);
+    int fpc = fclose(fp);
+    if (fpc != 0) {
+        fprintf(stderr, "Failed to close file %s\n", testName);
+        return 1;
+    }
     return 0;
 }
 
 int main(int argc, char *argv[]) {
     if (argc != 4) {
-        printf("Usage: ./DTest <TemplateFile1> <TemplateFile2> <TestName>\n");
+        printf("Usage: ./DTest <TemplateFile1> <TemplateFile2> <TestName> <Tolerance>\n");
         exit(1);
     }
     char *file1 = argv[1];
     char *file2 = argv[2];
     char *test_name = argv[3];
+    char *endptr;
+    float tol = strtof(argv[4], &endptr);
+
+    if (*endptr != '\0') {
+        fprintf(stderr, "Failed to read tolerance, only got %f\n", tol);
+        exit(1);
+    }
+
+    setTolerance(tol);
 
     Template temp1 = readTemplate(file1, test_name);
     Template temp2 = readTemplate(file2, test_name);
@@ -156,11 +218,19 @@ int main(int argc, char *argv[]) {
     Properties prop1 = startConfigureScript(temp1);
     Properties prop2 = startConfigureScript(temp2);
 
-    int eval = performEvaluation(prop1, prop2);
-    if (eval == 0)
-        return 0;
-    else {
+    int eval = performEvaluation(prop1, prop2, test_name, temp1, temp2);
+    if (eval != 0) {
         printf("Failed to perform evaluation\n");
         exit(1);
     }
+    // Free proxy models of prop1 and prop2
+    for (int i = 0; i < (int)sizeof(prop1.proxyModel) / sizeof(prop1.proxyModel[0]); i++) {
+        free(prop1.proxyModel[i]);
+    }
+    free(prop1.proxyModel);
+    for (int i = 0; i < (int)sizeof(prop2.proxyModel) / sizeof(prop2.proxyModel[0]); i++) {
+        free(prop2.proxyModel[i]);
+    }
+    free(prop2.proxyModel);
+    return 0;
 };

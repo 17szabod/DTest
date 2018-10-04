@@ -39,7 +39,7 @@ float getTolerance();
 
 Properties startConfigureScript(Template template);
 
-int performEvaluation(Properties p1, Properties p2);
+int performEvaluation(Properties p1, Properties p2, char* testName, Template temp1, Template temp2);
 
 
 #endif //DTEST_DTEST_H
