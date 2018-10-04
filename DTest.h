@@ -6,7 +6,7 @@
 #define DTEST_DTEST_H
 
 typedef struct {
-    int system; //why is this int?, Duygu
+    int system; 
     float systemTolerance;
     float algorithmPrecision;
     int queries; // The queries supported will be represented by a bitmask-- we will define a set of all possible
