@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<template>
+    <OS>Windows 7</OS>
+    <CAD_System_and_Version>
+        <CAD_System>Rhino</CAD_System> <!--0:Rhino, 1:OCC, 2:OpenSCAD-->
+        <Version>5</Version>
+    </CAD_System_and_Version>
+    <API_options>
+        {RhinoCommon, RhinoScript}
+    </API_options>
+    <Script_language>
+        {RhinoPython}
+    </Script_language>
+    <Queries_to_use>
+        <PMQ>1</PMQ>
+        <distance>1</distance>
+        <volume>1</volume>
+        <area>1</area>
+        <hausdorff>0</hausdorff>
+    </Queries_to_use>
+    <Unit_parameters>mm</Unit_parameters>
+    <Tolerances>
+        <Abs_tol>0.01</Abs_tol>
+        <rel_tol>1.0</rel_tol>
+        <ang_tol>1.0</ang_tol>
+    </Tolerances>
+    <Tolerance_scales>
+        {units, percent, degrees}
+    </Tolerance_scales>
+
+    <Model_Information>
+        <Topology>Polysurface</Topology>
+        <Model_dim>3</Model_dim>
+        <Boundary_dim>0</Boundary_dim> <!-- no boundary -->
+        <Convexity>1</Convexity> <!-- 1 for convex, 0 for non-convex -->
+        <Semilocal_simpleconnectivity>1</Semilocal_simpleconnectivity> <!--1 for connected, 0 not connected-->
+    </Model_Information>
+
+    <!--Additional Information if available-->
+
+    <Representation_scheme>BRep</Representation_scheme>
+    <Bounding_box_coords>
+        <xmin>-1</xmin>
+        <ymin>-1</ymin>
+        <zmin>-1</zmin>
+        <xmax>1</xmax>
+        <ymax>1</ymax>
+        <zmax>1</zmax>
+    </Bounding_box_coords>
+</template>
