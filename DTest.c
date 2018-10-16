@@ -25,7 +25,7 @@
 enum systemTypes {
     Rhino = 0, OpenCasCade = 1, OpenSCAD = 2
 };
-
+// This will need to change
 Template readTemplate(char *filename, char *testName) {
     FILE *fp = fopen(filename, "r");
     Template out;
