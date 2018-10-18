@@ -12,6 +12,8 @@
 #include <python3.7m/Python.h>
 #include <libxml/parser.h>
 #include <libxml/tree.h>
+#include <libxml/xmlIO.h>
+#include <libxml/xinclude.h>
 // Packages for server-side
 #include <netinet/tcp.h>
 #include <sys/socket.h>
@@ -25,67 +27,53 @@
 enum systemTypes {
     Rhino = 0, OpenCasCade = 1, OpenSCAD = 2
 };
-// This will need to change
-Template readTemplate(char *filename, char *testName) {
-    FILE *fp = fopen(filename, "r");
-    Template out;
-    int ifp;
-    ifp = fscanf(fp, "%f\n%i\n%i\n%i\n%f\n%i\n%f\n%i\n%s", &out.algorithmPrecision, &out.connected, &out.convex,
-                 &out.manifold, &out.minimumFeatureSize, &out.queries, &out.systemTolerance, &out.system, out.model);
-    if (ifp >= 0) {
-        fprintf(stderr, "Failed to read file with name: %s", filename);
-        fclose(fp);
-        exit(1);
+
+void recReadXML(Template *out, xmlNodePtr cur_parent, xmlDocPtr doc) {
+    xmlNodePtr cur_node = NULL;
+    for (cur_node = cur_parent; cur_node; cur_node = cur_node->next) {
+        if (cur_node->type == XML_ELEMENT_NODE) {
+            xmlChar *content = xmlNodeListGetString(doc, cur_node->xmlChildrenNode, 1);
+            printf("String length %i\n", xmlUTF8Strlen(content));
+            printf("node type: %i, name: %s, content: %s\n", cur_node->type, cur_node->name, xmlUTF8Strndup(content, 16));
+            if (xmlStrcmp(cur_node->name, BAD_CAST "CAD_System") == 0) {
+                out->system = atoi((char *) content);
+                xmlFree(content);
+            } else if (xmlStrcmp(cur_node->name, BAD_CAST "Queries_to_use") == 0) {
+                //TODO: Special treatment of queries case
+            } else if (xmlStrcmp(cur_node->name, BAD_CAST "Bounding_box_coords") == 0) {
+                //TODO: Special treatment of bounding box coordinates
+            } else if (xmlStrcmp(cur_node->name, BAD_CAST "Abs_tol") == 0) {
+                out->systemTolerance = strtof(content, NULL);
+                xmlFree(content);
+            } else if (xmlStrcmp(cur_node->name, BAD_CAST "Convexity") == 0) {
+                out->convex = atoi((char *) content);
+                xmlFree(content);
+            } else if (xmlStrcmp(cur_node->name, BAD_CAST "Semilocal_simpleconnectivity") == 0) {
+                out->semilocallysimplyconnected = (int) strtol((char *) content, NULL, 0);
+                xmlFree(content);
+            } else if (xmlStrcmp(cur_node->name, BAD_CAST "Semilocal_simpleconnectivity") == 0) {
+                out->semilocallysimplyconnected = (int) strtol((char *) content, NULL, 0);
+                xmlFree(content);
+            }
+            recReadXML(out, cur_node->children, doc);
+        }
     }
-    fclose(fp);
-    return out;
 }
 
-Template *readTemplate2(char *filename, char *testName) {
+Template readTemplate2(char *filename, char *testName) {
     xmlDocPtr doc;
-    doc = xmlReadFile(filename, NULL, 0);
+    doc = xmlParseFile(filename);
     if (doc == NULL) {
         fprintf(stderr, "failed to parse the including file\n");
         exit(1);
     }
     Template out;
-    xmlFreeDoc(doc);
-    xmlNode *a_node = doc->children;
-    xmlNode *cur_node;
-    xmlNode *cur_parent = a_node;
-    char *name;
-    while (cur_parent) {
-        for (cur_node = cur_parent; cur_node; cur_node = cur_node->next) {
-            printf("node type: %i, name: %s\n", cur_node->type, cur_node->name);
-            if (cur_node->type == XML_ELEMENT_NODE) {
-                if (cur_node->children) {
-                    cur_parent = cur_node->children;
-                }
-                name = (char *) cur_node->name;
-                if (strcmp(name, "CAD_System") == 0) {
-                    out.system = atoi((char *) cur_node->content);
-                }
-                else if (strcmp(name, "Queries_to_use") == 0) {
-                    //TODO: Special treatment of queries case
-                }
-                else if (strcmp(name, "Bounding_box_coords") == 0) {
-                    //TODO: Special treatment of bounding box coordinates
-                }
-                else if (strcmp(name, "Abs_tol") == 0) {
-                    out.systemTolerance = atof((char *) cur_node->content);
-                }
-                else if (strcmp(name, "Convexity") == 0) {
-                    out.convex = atoi((char *) cur_node->content);
-                }
-                else if (strcmp(name, "Semilocal_simpleconnectivity") == 0) {
-                    out.semilocallysimplyconnected = atoi((char *) cur_node->content);
-                }
-            }
-        }
-        cur_parent = cur_parent->next;
-    }
+    xmlNodePtr a_node = xmlDocGetRootElement(doc);
+    recReadXML(&out, a_node, doc);
 
-    return &out;
+    xmlFreeDoc(doc);
+
+    return out;
 }
 
 // source: https://gist.github.com/nolim1t/126991
@@ -123,7 +111,7 @@ Properties startConfigureScript(Template template) {
         PyObject *pName, *pModule, *pFunc;
         PyObject *pArgs, *pValue, *pArg1, *pArg2, *pArg3, *pBoundArg;
         Py_Initialize();
-        pName = PyUnicode_DecodeFSDefault("py_interface.py");
+        pName = PyUnicode_DecodeFSDefault("/home/daniel/PycharmProjects/ICSI/py_interface.py");
         pModule = PyImport_Import(pName);
         Py_DECREF(pName);
         if (pModule != NULL) {
@@ -154,6 +142,7 @@ Properties startConfigureScript(Template template) {
                     pVol = PyTuple_GetItem(pValue, 1);
                     pProx = PyTuple_GetItem(pValue, 2);
                     prop1.surfaceArea = (float) PyLong_AsDouble(pSurfAr);
+                    printf("Surface Area: %f\n", prop1.surfaceArea);
                     prop1.volume = (float) PyLong_AsDouble(pVol);
                     pSize = PyLong_FromSsize_t(PyDict_Size(pProx));
                     long size = PyLong_AsLong(pSize);
@@ -219,6 +208,11 @@ Properties startConfigureScript(Template template) {
                 fprintf(stderr, "Cannot find function \"%s\"\n", "occ_configure");
             }
         }
+        else {
+            PyErr_Print();
+            fprintf(stderr, "Failed to load \"%s\"\n", template.model);
+            exit(1);
+        }
         if (Py_FinalizeEx() < 0) {
             fprintf(stderr, "Failed to close python connection\n");
             exit(1);
@@ -227,9 +221,10 @@ Properties startConfigureScript(Template template) {
         socket_connect(HOSTNAME, 80); // Might need to change ports
     } else if (template.system == OpenSCAD) {
 
-    } else
+    } else {
         fprintf(stderr, "System not recognized, aborting\n");
-    exit(1);
+        exit(1);
+    }
 }
 
 int setTolerance(float tol) {
@@ -293,11 +288,11 @@ double hausdorff_distance(Properties prop1, Properties prop2) {
     for (int i = 0; i < (int) sizeof(prop1.proxyModel) / sizeof(prop1.proxyModel[0]); i++) {
         for (int j = 0; j < (int) sizeof(prop2.proxyModel) / sizeof(prop2.proxyModel[0]); j++) {
             dist = sqrt(pow((prop1.proxyModel[i][0] - prop2.proxyModel[j][0]), 2) +
-                   pow((prop1.proxyModel[i][1] - prop2.proxyModel[j][1]), 2) +
-                   pow((prop1.proxyModel[i][2] - prop2.proxyModel[j][2]), 2));
-            if (dist < min_dist)  min_dist = dist;
+                        pow((prop1.proxyModel[i][1] - prop2.proxyModel[j][1]), 2) +
+                        pow((prop1.proxyModel[i][2] - prop2.proxyModel[j][2]), 2));
+            if (dist < min_dist) min_dist = dist;
         }
-        if (min_dist > max_dist)  max_dist = min_dist;
+        if (min_dist > max_dist) max_dist = min_dist;
     }
     return max_dist;
 }
@@ -321,15 +316,17 @@ int main(int argc, char *argv[]) {
 
     setTolerance(tol);
 
-    Template *temp1 = readTemplate2(file1, test_name);
-    Template *temp2 = readTemplate2(file2, test_name);
+    Template temp1 = readTemplate2(file1, test_name);
+    Template temp2 = readTemplate2(file2, test_name);
+    printf("Template properties:\nSystem: %i\nPMC Precision: %f\n", temp1.system, temp1.algorithmPrecision);
 
-    Properties prop1 = startConfigureScript(*temp1);
-    Properties prop2 = startConfigureScript(*temp2);
+    Properties prop1 = startConfigureScript(temp1);
+    Properties prop2 = startConfigureScript(temp2);
+    printf("Testing successful property construction:\nSurface Area: %f\nVolume: %f\n", prop1.surfaceArea, prop1.volume);
     double dist = hausdorff_distance(prop1, prop2);
 
 
-    int eval = performEvaluation(prop1, prop2, test_name, *temp1, *temp2, dist);
+    int eval = performEvaluation(prop1, prop2, test_name, temp1, temp2, dist);
     if (eval != 0) {
         printf("Failed to perform evaluation\n");
         exit(1);

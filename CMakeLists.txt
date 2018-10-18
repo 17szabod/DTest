@@ -5,6 +5,7 @@ set(CMAKE_C_STANDARD 99)
 
 set(SOURCE_FILES DTest.c DTest.h)
 
+set(PYTHON_LIBRARY)
 find_package(PythonLibs REQUIRED)
 include_directories(${PYTHON_INCLUDE_DIRS})
 

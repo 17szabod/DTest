@@ -32,8 +32,7 @@ typedef struct {
 
 float tolerance;
 
-Template readTemplate(char* filename, char* testName);// what is testName?, Duygu
-Template *readTemplate2(char* filename, char* testName);// what is testName?, Duygu
+Template readTemplate2(char* filename, char* testName);// what is testName?, Duygu
 
 int setTolerance(float tol);
 
