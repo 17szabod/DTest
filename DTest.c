@@ -9,7 +9,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <math.h>
-#include <python3.7m/Python.h>
+#include <Python.h>
 #include <libxml/parser.h>
 #include <libxml/tree.h>
 #include <libxml/xmlIO.h>
@@ -28,35 +28,145 @@ enum systemTypes {
     Rhino = 0, OpenCasCade = 1, OpenSCAD = 2
 };
 
-void recReadXML(Template *out, xmlNodePtr cur_parent, xmlDocPtr doc) {
-    xmlNodePtr cur_node = NULL;
-    for (cur_node = cur_parent; cur_node; cur_node = cur_node->next) {
+
+void dump_template(Template temp) {
+    printf("\n========DUMPING TEMPLATE FILE=========\n");
+    printf("Model: %s\n", temp.model);
+    printf("Queries: %lo\n", temp.queries);
+    printf("Algorithm Precision: %f\n", temp.algorithmPrecision);
+    printf("System: %i\n", temp.system);
+    printf("Bounds: ");
+    for (int i = 6; i < 6; i++) {
+        printf("%f, ", temp.bounds[i > 2 ? 1 : 0][i % 3]);
+    }
+    printf("\nConvexity: %i\n", temp.convex);
+    printf("========END DUMP=========\n\n");
+}
+
+
+void readSysVersion(Template *out, xmlNodePtr sys_root, xmlDocPtr doc) {
+    xmlNodePtr child_node = sys_root->children;
+    while (child_node) {
+        xmlChar *content = xmlNodeListGetString(doc, child_node->xmlChildrenNode, 1);
+        printf("String length: %i\n", xmlUTF8Strlen(content));
+        printf("node type: %i, name: %s, content: %s\n", child_node->type, child_node->name, content);
+        if (xmlStrEqual(child_node->name, (const xmlChar*) "CAD_System")) {
+            out->system = atoi((char *) content);
+            xmlFree(content);
+        }
+        child_node = child_node->next;
+    }
+}
+
+void readAABBCoords(Template *out, xmlNodePtr sys_root, xmlDocPtr doc) {
+    xmlNodePtr child_node = sys_root->children;
+    while (child_node) {
+        xmlChar *content = xmlNodeListGetString(doc, child_node->xmlChildrenNode, 1);
+        printf("String length: %i\n", xmlUTF8Strlen(content));
+        printf("node type: %i, name: %s, content: %s\n", child_node->type, child_node->name, content);
+        if (xmlStrEqual(child_node->name, (const xmlChar*) "xmin")) {
+            out->bounds[0][0] = atof((char *) content);
+            xmlFree(content);
+        } if (xmlStrEqual(child_node->name, (const xmlChar*) "ymin")) {
+            out->bounds[0][1] = atof((char *) content);
+            xmlFree(content);
+        }  if (xmlStrEqual(child_node->name, (const xmlChar*) "zmin")) {
+            out->bounds[0][2] = atof((char *) content);
+            xmlFree(content);
+        }  if (xmlStrEqual(child_node->name, (const xmlChar*) "xmax")) {
+            out->bounds[1][0] = atof((char *) content);
+            xmlFree(content);
+        }  if (xmlStrEqual(child_node->name, (const xmlChar*) "ymax")) {
+            out->bounds[1][1] = atof((char *) content);
+            xmlFree(content);
+        }  if (xmlStrEqual(child_node->name, (const xmlChar*) "zmax")) {
+            out->bounds[1][2] = atof((char *) content);
+            xmlFree(content);
+        }
+        child_node = child_node->next;
+    }
+}
+
+void readQueries(Template *out, xmlNodePtr sys_root, xmlDocPtr doc) {
+    xmlNodePtr child_node = sys_root->children;
+    long bitmask = 0;
+    int k = 0;
+    while (child_node) {
+        xmlChar *content = xmlNodeListGetString(doc, child_node->xmlChildrenNode, 1);
+        printf("String length: %i\n", xmlUTF8Strlen(content));
+        printf("node type: %i, name: %s, content: %s\n", child_node->type, child_node->name, content);
+        bitmask += pow(2, k);
+        k += 1;
+        child_node = child_node->next;
+    }
+    out->queries = bitmask;
+}
+
+void readModelInfo(Template *out, xmlNodePtr sys_root, xmlDocPtr doc) {
+    dump_template(*out);
+    xmlNodePtr child_node = sys_root->children;
+    while (child_node) {
+        if (xmlStrEqual(child_node->name, (const xmlChar*) "FileName")) {
+            xmlChar *content1 = xmlNodeListGetString(doc, child_node->xmlChildrenNode, 1);
+            printf("String length: %i\n", xmlUTF8Strlen(content1));
+            printf("node type: %i, name: %s, content: %s\n", child_node->type, child_node->name, content1);
+            out->model = (char *) content1;
+            printf("My model name: %s\n", out->model);
+//            xmlFree(content1);
+        } else if (xmlStrEqual(child_node->name, (const xmlChar*) "Convexity")) {
+            xmlChar *content2 = xmlNodeListGetString(doc, child_node->xmlChildrenNode, 1);
+            printf("String length: %i\n", xmlUTF8Strlen(content2));
+            printf("node type: %i, name: %s, content: %s\n", child_node->type, child_node->name, content2);
+            out->convex = atoi((char *) content2);
+//            xmlFree(content2);
+        } else if (xmlStrEqual(child_node->name, (const xmlChar*) "Semilocal_simpleconnectivity")) {
+            xmlChar *content3 = xmlNodeListGetString(doc, child_node->xmlChildrenNode, 1);
+            printf("String length: %i\n", xmlUTF8Strlen(content3));
+            printf("node type: %i, name: %s, content: %s\n", child_node->type, child_node->name, content3);
+            out->semilocallysimplyconnected = (int) strtol((char *) content3, NULL, 0);
+//            xmlFree(content3);
+        }
+        child_node = child_node->next;
+    }
+    dump_template(*out);
+}
+
+void readTolerances(Template *out, xmlNodePtr sys_root, xmlDocPtr doc) {
+    xmlNodePtr child_node = sys_root->children;
+    while (child_node) {
+        xmlChar *content = xmlNodeListGetString(doc, child_node->xmlChildrenNode, 1);
+        printf("String length: %i\n", xmlUTF8Strlen(content));
+        printf("node type: %i, name: %s, content: %s\n", child_node->type, child_node->name, content);
+        if (xmlStrEqual(child_node->name, (const xmlChar*) "Abs_tol")) {
+            out->systemTolerance = strtof((char *) content, NULL);
+            xmlFree(content);
+            child_node = child_node->next;
+        }
+        child_node = child_node->next;
+    }
+}
+
+void readXML(Template *out, xmlNodePtr cur_parent, xmlDocPtr doc) {
+    xmlNodePtr cur_node = cur_parent->children;
+    while (cur_node) {
         if (cur_node->type == XML_ELEMENT_NODE) {
             xmlChar *content = xmlNodeListGetString(doc, cur_node->xmlChildrenNode, 1);
-            printf("String length %i\n", xmlUTF8Strlen(content));
-            printf("node type: %i, name: %s, content: %s\n", cur_node->type, cur_node->name, xmlUTF8Strndup(content, 16));
-            if (xmlStrcmp(cur_node->name, BAD_CAST "CAD_System") == 0) {
-                out->system = atoi((char *) content);
-                xmlFree(content);
-            } else if (xmlStrcmp(cur_node->name, BAD_CAST "Queries_to_use") == 0) {
-                //TODO: Special treatment of queries case
-            } else if (xmlStrcmp(cur_node->name, BAD_CAST "Bounding_box_coords") == 0) {
-                //TODO: Special treatment of bounding box coordinates
-            } else if (xmlStrcmp(cur_node->name, BAD_CAST "Abs_tol") == 0) {
-                out->systemTolerance = strtof(content, NULL);
-                xmlFree(content);
-            } else if (xmlStrcmp(cur_node->name, BAD_CAST "Convexity") == 0) {
-                out->convex = atoi((char *) content);
-                xmlFree(content);
-            } else if (xmlStrcmp(cur_node->name, BAD_CAST "Semilocal_simpleconnectivity") == 0) {
-                out->semilocallysimplyconnected = (int) strtol((char *) content, NULL, 0);
-                xmlFree(content);
-            } else if (xmlStrcmp(cur_node->name, BAD_CAST "Semilocal_simpleconnectivity") == 0) {
-                out->semilocallysimplyconnected = (int) strtol((char *) content, NULL, 0);
-                xmlFree(content);
+            printf("String length: %i\n", xmlUTF8Strlen(content));
+            printf("node type: %i, name: %s, content: %s\n", cur_node->type, cur_node->name,
+                   xmlUTF8Strndup(content, 16));
+            if (xmlStrEqual(cur_node->name, (const xmlChar*) "CAD_System_and_Version")) {
+                readSysVersion(out, cur_node, doc);
+            } else if (xmlStrEqual(cur_node->name, (const xmlChar*) "Queries_to_use")) {
+                readQueries(out, cur_node, doc);
+            } else if (xmlStrEqual(cur_node->name, (const xmlChar*) "Bounding_box_coords")) {
+                readAABBCoords(out, cur_node, doc);
+            } else if (xmlStrEqual(cur_node->name, (const xmlChar*) "Model_Information")) {
+                readModelInfo(out, cur_node, doc);
+            } else if (xmlStrEqual(cur_node->name, (const xmlChar*) "Tolerances")) {
+                readTolerances(out, cur_node, doc);
             }
-            recReadXML(out, cur_node->children, doc);
         }
+        cur_node = cur_node->next;
     }
 }
 
@@ -69,7 +179,7 @@ Template readTemplate2(char *filename, char *testName) {
     }
     Template out;
     xmlNodePtr a_node = xmlDocGetRootElement(doc);
-    recReadXML(&out, a_node, doc);
+    readXML(&out, a_node, doc);
 
     xmlFreeDoc(doc);
 
@@ -207,8 +317,7 @@ Properties startConfigureScript(Template template) {
                     PyErr_Print();
                 fprintf(stderr, "Cannot find function \"%s\"\n", "occ_configure");
             }
-        }
-        else {
+        } else {
             PyErr_Print();
             fprintf(stderr, "Failed to load \"%s\"\n", template.model);
             exit(1);
@@ -318,11 +427,12 @@ int main(int argc, char *argv[]) {
 
     Template temp1 = readTemplate2(file1, test_name);
     Template temp2 = readTemplate2(file2, test_name);
-    printf("Template properties:\nSystem: %i\nPMC Precision: %f\n", temp1.system, temp1.algorithmPrecision);
+    dump_template(temp1);
 
     Properties prop1 = startConfigureScript(temp1);
     Properties prop2 = startConfigureScript(temp2);
-    printf("Testing successful property construction:\nSurface Area: %f\nVolume: %f\n", prop1.surfaceArea, prop1.volume);
+    printf("Testing successful property construction:\nSurface Area: %f\nVolume: %f\n", prop1.surfaceArea,
+           prop1.volume);
     double dist = hausdorff_distance(prop1, prop2);
 
 

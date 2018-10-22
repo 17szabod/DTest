@@ -10,7 +10,7 @@ typedef struct {
     int system;
     double systemTolerance;
     float algorithmPrecision;
-    int queries; // The queries supported will be represented by a bitmask-- we will define a set of all possible
+    long queries; // The queries supported will be represented by a bitmask-- we will define a set of all possible
     // queries (less than 32), and the bitmask will represent a subset that is supported.
     int manifold;
     int connected;
@@ -19,7 +19,7 @@ typedef struct {
     int orientation; //added, Duygu
     int convex;
     float minimumFeatureSize;
-    float bounds[2][3]; //added, Daniel  form: [[xmin, ymin, zmin], [xmax, ymax, zmax]]
+    double bounds[2][3]; //added, Daniel  form: [[xmin, ymin, zmin], [xmax, ymax, zmax]]
     char *model; // A way to access the model, whether it be a filename or a unique id in a database (filename for now)
 } Template;
 
