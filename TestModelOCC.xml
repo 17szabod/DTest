@@ -6,10 +6,10 @@
     <Script_language>1 <!--{Python, C++}--></Script_language>
     <Queries_to_use>1<PMQ>1</PMQ><distance>1</distance><volume>1</volume><area>1</area><surface_properties>1</surface_properties><hausdorff>1</hausdorff></Queries_to_use>
     <Unit_parameters>mm</Unit_parameters>
-    <Tolerances><Abs_tol>.00000001</Abs_tol><Par_tol>.000001</Par_tol><ang_tol>.000000000001</ang_tol><alg_tol>.0000001</alg_tol></Tolerances>
+    <Tolerances><Abs_tol>.00000001</Abs_tol><Par_tol>.000001</Par_tol><ang_tol>.000000000001</ang_tol><alg_tol>.001</alg_tol></Tolerances>
     <Tolerance_scales>1</Tolerance_scales>
 
-    <Model_Information><FileName>data/OCCFile.stp</FileName><Topology>Polysurface</Topology><Model_dim>3</Model_dim><Boundary_dim>2</Boundary_dim> <!-- no boundary --><Convexity>0</Convexity> <!-- 1 for convex, 0 for non-convex --><Semilocal_simpleconnectivity>1</Semilocal_simpleconnectivity> <!--1 for connected, 0 not connected--></Model_Information>
+    <Model_Information><FileName>/home/daniel/CLionProjects/DTest/data/OCCFile.stp</FileName><Topology>Polysurface</Topology><Model_dim>3</Model_dim><Boundary_dim>2</Boundary_dim> <!-- no boundary --><Convexity>0</Convexity> <!-- 1 for convex, 0 for non-convex --><Semilocal_simpleconnectivity>1</Semilocal_simpleconnectivity> <!--1 for connected, 0 not connected--></Model_Information>
 
     <!--Additional Information if available-->
 

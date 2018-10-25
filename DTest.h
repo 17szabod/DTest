@@ -24,23 +24,24 @@ typedef struct {
 } Template;
 
 typedef struct {
-    float surfaceArea;
-    float volume;
+    double surfaceArea;
+    double volume;
+    long num_points;
     double **proxyModel;  // A 2D, n by 4 array representing a union of balls -- Should we put this in Properties??? -Yes, Duygu
     // NOTE: proxyModel, because of its size, is on the heap, so free it after use
 } Properties;
 
 float tolerance;
 
-Template readTemplate2(char* filename, char* testName);// what is testName?, Duygu
+Template readTemplate(char *filename, char *testName, int debug);// what is testName?, Duygu
 
 int setTolerance(float tol);
 
 float getTolerance();
 
-Properties startConfigureScript(Template template);
+Properties *startConfigureScript(Template template1, Template template2, int debug);
 
-int performEvaluation(Properties p1, Properties p2, char* testName, Template temp1, Template temp2, double hausdorff);
+int performEvaluation(Properties p1, Properties p2, char* testName, Template temp1, Template temp2, double hausdorff, int debug);
 
 
 #endif //DTEST_DTEST_H

@@ -1,23 +1,32 @@
 cmake_minimum_required(VERSION 3.12)
 project(DTest)
 
+
 set(CMAKE_C_STANDARD 99)
-
 set(SOURCE_FILES DTest.c DTest.h)
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DNDEBUG -g -fwrapv -O3 -Wall -Wstrict-prototypes")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Xlinker -export-dynamic")
+set(PYTHON_LIBRARY /home/daniel/anaconda3/lib/libpython3.6m.so)
+set(PYTHON_INCLUDE_DIR /home/daniel/anaconda3/include/python3.6m)
+set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH} /home/daniel/CLionProjects/DTest/build/lib.linux-x86_64-3.6")
 
-#set(PYTHON_LIBRARY /home/daniel/anaconda3/lib/libpython3.so)
-#set(PYTHON_INCLUDE_DIR /home/daniel/anaconda3/include/python3.6m)
 find_package(PythonLibs REQUIRED)
 include_directories(${PYTHON_INCLUDE_DIRS})
-#include_directories(/home/daniel/anaconda3/include/python3.6m)
-
+include_directories(/home/daniel/PycharmProjects/ICSI/)
+#include_directories(build/lib.linux-x86_64-3.6)
+#add_library( mylib SHARED IMPORTED )
+#set_target_properties( mylib PROPERTIES IMPORTED_LOCATION build/lib.linux-x86_64-3.6/hmming.cpython-36m-x86_64-linux-gnu.so)
+message(${PYTHON_LIBRARIES})
+#find_library(HMM_LIB hmming.cpython-36m-x86_64-linux-gnu)
+#install(PROGRAMS hmm DESTINATION build)
+#install(PROGRAMS py_interface DESTINATION build)
 add_executable(DTest ${SOURCE_FILES})
 
-set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Xlinker -export-dynamic")
-
 target_link_libraries(DTest ${PYTHON_LIBRARIES})
+#target_link_libraries(DTest hmming.cpython-36m-x86_64-linux-gnu.so)
 target_link_libraries(DTest m)
 target_link_libraries(DTest pthread)
 target_link_libraries(DTest dl)
+target_link_libraries(DTest rt)
 target_link_libraries(DTest util)
 target_link_libraries(DTest xml2)
