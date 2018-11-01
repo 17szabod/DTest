@@ -1,0 +1,10 @@
+Running test sample_test on model 1 /home/daniel/CLionProjects/DTest/data/OCCFile.stp and model 2 /home/daniel/CLionProjects/DTest/data/OCCFile.stp:
+
+Volume:
+Systems OpenCasCade and OpenCasCade have compatible volumes with a difference of 0.000000
+
+Surface Area:
+Systems OpenCasCade and OpenCasCade have compatible areas with a difference of 0.000000
+
+Hausdorff Distance:
+Systems OpenCasCade and OpenCasCade have compatible distances with a difference of 0.000000
