@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<template>
+    <OS>Ubuntu 14.01</OS>
+    <CAD_System_and_Version><CAD_System>2</CAD_System> <!--0:Rhino, 1:OCC, 2:OpenSCAD, 3:MeshLab--><Version>1.1.0</Version></CAD_System_and_Version>
+    <API_options>1<!--{ModelingAlgorithms, FoundationClasses, ModelingData} --></API_options>
+    <Script_language>1 <!--{Python, C++}--></Script_language>
+    <Queries_to_use><PMQ>1</PMQ><distance>0</distance><volume>0</volume><area>0</area><surface_properties>0</surface_properties><hausdorff>0</hausdorff></Queries_to_use>
+    <Unit_parameters>mm</Unit_parameters>
+    <Tolerances><Abs_tol>.00000001</Abs_tol><Par_tol>.000001</Par_tol><ang_tol>.000000000001</ang_tol><alg_tol>.2</alg_tol></Tolerances>
+    <Tolerance_scales>1</Tolerance_scales>
+
+    <Model_Information><FileName>SCAD_maker.make_sphere()</FileName><Topology>Polysurface</Topology><Model_dim>3</Model_dim><Boundary_dim>2</Boundary_dim> <!-- no boundary --><Convexity>0</Convexity> <!-- 1 for convex, 0 for non-convex --><Semilocal_simpleconnectivity>1</Semilocal_simpleconnectivity> <!--1 for connected, 0 not connected--></Model_Information>
+
+    <!--Additional Information if available-->
+
+    <Representation_scheme>CSG</Representation_scheme>
+    <Bounding_box_coords><xmin>-1</xmin><ymin>-1</ymin><zmin>-1</zmin><xmax>1</xmax><ymax>1</ymax><zmax>1</zmax></Bounding_box_coords>
+</template>

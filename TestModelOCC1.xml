@@ -9,7 +9,7 @@
     <Tolerances><Abs_tol>.00000001</Abs_tol><Par_tol>.000001</Par_tol><ang_tol>.000000000001</ang_tol><alg_tol>.2</alg_tol></Tolerances>
     <Tolerance_scales>1</Tolerance_scales>
 
-    <Model_Information><FileName>/home/daniel/PycharmProjects/ICSI/data/circ/0xbox.step</FileName><Topology>Polysurface</Topology><Model_dim>3</Model_dim><Boundary_dim>2</Boundary_dim> <!-- no boundary --><Convexity>1</Convexity> <!-- 1 for convex, 0 for non-convex --><Semilocal_simpleconnectivity>1</Semilocal_simpleconnectivity> <!--1 for connected, 0 not connected--></Model_Information>
+    <Model_Information><FileName>/home/daniel/PycharmProjects/ICSI/data/circ/xbox.step</FileName><Topology>Polysurface</Topology><Model_dim>3</Model_dim><Boundary_dim>2</Boundary_dim> <!-- no boundary --><Convexity>1</Convexity> <!-- 1 for convex, 0 for non-convex --><Semilocal_simpleconnectivity>1</Semilocal_simpleconnectivity> <!--1 for connected, 0 not connected--></Model_Information>
 
     <!--Additional Information if available-->
 

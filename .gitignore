@@ -1,0 +1,12 @@
+/.idea
+
+
+Centroid Comparison
+Compare CSG to OCC (+ Rhino)
+Round trip to STEP in same system
+Round trip to STL in same system
+1. Take a model in OCC save it as STEP then read it in Rhino and save it as STEP there and compare these 2 STEP files 2. Send the STEP file back to OCC and compare the first STEP in OCC and the traveler STEP in OCC
+
+1. Finish the OCC-Rhino-OCC
+2. Centroids: Direct computations on same model from multiple systems
+3. Vary pmc-epsilon with #1.

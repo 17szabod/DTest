@@ -39,7 +39,7 @@ int setTolerance(float tol);
 
 float getTolerance();
 
-Properties *startConfigureScript(Template template1, Template template2, int debug);
+int startConfigureScript(Properties *props[2], Template template1, Template template2, int debug);
 
 int performEvaluation(Properties p1, Properties p2, char* testName, Template temp1, Template temp2, double hausdorff, int debug);
 

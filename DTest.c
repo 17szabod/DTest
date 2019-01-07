@@ -25,7 +25,7 @@
 #define HOSTNAME "localhost"
 
 enum systemTypes {
-    Rhino = 0, OpenCasCade = 1, OpenSCAD = 2
+    Rhino = 0, OpenCasCade = 1, OpenSCAD = 2, MeshLab = 3
 };
 
 
@@ -49,7 +49,7 @@ void dump_properties(Properties prop) {
     printf("Surface Area: %f\n", prop.surfaceArea);
     printf("Volume: %f\n", prop.volume);
     printf("Number of points: %lo\n", prop.num_points);
-    printf("Size of proxy model: %lo\n", sizeof(prop.proxyModel) / sizeof(prop.proxyModel[0]));
+    printf("Proxy model is at: %p\n", prop.proxyModel);
     printf("========END DUMP=========\n\n");
 }
 
@@ -230,19 +230,363 @@ int socket_connect(char *host, in_port_t port) {
     return sock;
 }
 
-Properties *startConfigureScript(Template template1, Template template2, int debug) {
-    Properties new_properties1;
-    Properties *prop1 = &new_properties1;
-    Properties new_properties2;
-    Properties *prop2 = &new_properties2;
-    Properties *props[2];
-    props[0] = prop1;
-    props[1] = prop2;
+
+int runOCCConfigure(Template template, PyObject *pModule, Properties *prop, int debug) {
+    PyObject * pFunc;
+    pFunc = PyObject_GetAttrString(pModule, "occ_configure");
+    /* pFunc is a new reference */
+
+    if (pFunc && PyCallable_Check(pFunc)) {
+
+        PyObject * pArgs, *pValue, *pArg1, *pArg2, *pArg3, *pBoundArg;
+        if (template.system != OpenCasCade) {
+            fprintf(stderr, "Tried to run OCC configure on system %i, which is not OCC.\n", template.system);
+            exit(1);
+        }
+        if (debug) {
+            printf("Calling a new round of occ configure\n");
+        }
+        pArgs = PyTuple_New(9);
+        // The arguments will be: Sys_eps, alg_eps, and some access to the shape (filename?)
+        pArg1 = PyFloat_FromDouble(template.systemTolerance);
+        pArg2 = PyFloat_FromDouble(template.algorithmPrecision);
+        pArg3 = PyUnicode_DecodeFSDefault(template.model);
+        PyTuple_SetItem(pArgs, 0, pArg1);
+        PyTuple_SetItem(pArgs, 1, pArg2);
+        PyTuple_SetItem(pArgs, 2, pArg3);
+        for (int i = 0; i < 2; i++) {
+            for (int j = 0; j < 3; j++) {
+                pBoundArg = PyFloat_FromDouble(template.bounds[i][j]);
+                PyTuple_SetItem(pArgs, 3 + 3 * i + j, pBoundArg);
+            }
+        }
+        pValue = PyTuple_New(3);
+        pValue = PyObject_CallObject(pFunc, pArgs);
+        if (pValue != NULL) {
+            PyObject * pSurfAr, *pVol, *pProx;
+            PyObject * pSize;
+            if (!PyTuple_CheckExact(pValue)) {
+                fprintf(stderr, "Did not receive a tuple from function call, exiting.\n");
+                exit(1);
+            }
+            if (debug) {
+                printf("The length of the tuple: %lo\n", PyTuple_Size(pValue));
+            }
+            pSurfAr = PyTuple_GetItem(pValue, 0);
+            pVol = PyTuple_GetItem(pValue, 1);
+            pProx = PyTuple_GetItem(pValue, 2);
+            prop->surfaceArea = PyFloat_AsDouble(pSurfAr);
+            if (debug) {
+                printf("Surface Area: %f\n", prop->surfaceArea);
+            }
+            prop->volume = PyFloat_AsDouble(pVol);
+            pSize = PyLong_FromSsize_t(PyDict_Size(pProx));
+            long size = PyLong_AsLong(pSize);
+            prop->proxyModel = malloc(size * sizeof(double *));
+            for (int i = 0; i < size; i++) {
+                prop->proxyModel[i] = malloc(4 * sizeof(double));
+            }
+            if (debug) {
+                printf("Successfully allocated space for proxy model\n");
+            }
+            PyObject * key, *value;
+            PyObject * xVal, *yVal, *zVal;
+            double x, y, z;
+            int i = 0;
+            Py_ssize_t
+            pos = 0;
+            if (debug) {
+                printf("Starting to loop through each element in dictionary\n");
+                printf("The size of the dictionary is: %lo\n", size);
+            }
+            prop->num_points = size;
+            while (PyDict_Next(pProx, &pos, &key, &value)) {
+                xVal = PyTuple_GetItem(key, 0);
+                yVal = PyTuple_GetItem(key, 1);
+                zVal = PyTuple_GetItem(key, 2);
+                x = PyFloat_AsDouble(xVal);
+                y = PyFloat_AsDouble(yVal);
+                z = PyFloat_AsDouble(zVal);
+                if (debug) {
+                    printf("Working on point [%f, %f, %f], the value is: %f\n", x, y, z, PyFloat_AsDouble(value));
+                }
+                if (x == -1 && PyErr_Occurred()) {
+                    PyErr_Print();
+                    fprintf(stderr, "Failed to read value %i in the proxy model.\n", i);
+                    exit(1);
+                }
+                prop->proxyModel[i][0] = x;
+                prop->proxyModel[i][1] = y;
+                prop->proxyModel[i][2] = z;
+                prop->proxyModel[i][3] = PyFloat_AsDouble(value);
+                i++;
+            }
+            if (debug) {
+                printf("Successfully read the proxy model\n");
+                printf("Successfully set the proxy model\n");
+            }
+            if (debug) {
+                printf("Successfully populated new properties structure!\n");
+                dump_properties(*prop);
+            }
+        } else {
+            Py_DECREF(pFunc);
+            Py_DECREF(pModule);
+            PyErr_Print();
+            fprintf(stderr, "Call failed\n");
+            exit(1);
+        }
+    } else {
+        if (PyErr_Occurred())
+            PyErr_Print();
+        fprintf(stderr, "Cannot find function \"%s\"\n", "occ_configure");
+    }
+    Py_DECREF(pFunc);
+    return 0;
+}
+
+
+int runSCADConfigure(Template template, PyObject *pModule, Properties *prop, int debug) {
+    PyObject * pFunc, *pValue, *pArgs;
+    pFunc = PyObject_GetAttrString(pModule, "scad_configure");
+    /* pFunc is a new reference */
+
+    if (pFunc && PyCallable_Check(pFunc)) {
+
+        PyObject *pArg1, *pArg2, *pArg3, *pBoundArg;
+        if (template.system != OpenSCAD) {
+            fprintf(stderr, "Tried to run SCAD configure on system %i, which is not SCAD.\n", template.system);
+            exit(1);
+        }
+        if (debug) {
+            printf("Calling a new round of scad configure\n");
+        }
+        pArgs = PyTuple_New(9);
+        // The arguments will be: Sys_eps, alg_eps, and some access to the shape (filename?)
+        pArg1 = PyFloat_FromDouble(template.systemTolerance);
+        pArg2 = PyFloat_FromDouble(template.algorithmPrecision);
+        pArg3 = PyUnicode_DecodeFSDefault(template.model);
+        PyTuple_SetItem(pArgs, 0, pArg1);
+        PyTuple_SetItem(pArgs, 1, pArg2);
+        PyTuple_SetItem(pArgs, 2, pArg3);
+        for (int i = 0; i < 2; i++) {
+            for (int j = 0; j < 3; j++) {
+                pBoundArg = PyFloat_FromDouble(template.bounds[i][j]);
+                PyTuple_SetItem(pArgs, 3 + 3 * i + j, pBoundArg);
+            }
+        }
+        pValue = PyTuple_New(3);
+        pValue = PyObject_CallObject(pFunc, pArgs);
+        if (pValue != NULL) {
+            PyObject * pSurfAr, *pVol, *pProx;
+            PyObject * pSize;
+            if (!PyTuple_CheckExact(pValue)) {
+                fprintf(stderr, "Did not receive a tuple from function call, exiting.\n");
+                exit(1);
+            }
+            if (debug) {
+                printf("The length of the tuple: %lo\n", PyTuple_Size(pValue));
+            }
+            pSurfAr = PyTuple_GetItem(pValue, 0);
+            pVol = PyTuple_GetItem(pValue, 1);
+            pProx = PyTuple_GetItem(pValue, 2);
+            prop->surfaceArea = PyFloat_AsDouble(pSurfAr);
+            if (debug) {
+                printf("Surface Area: %f\n", prop->surfaceArea);
+            }
+            prop->volume = PyFloat_AsDouble(pVol);
+            pSize = PyLong_FromSsize_t(PyDict_Size(pProx));
+            long size = PyLong_AsLong(pSize);
+            prop->proxyModel = malloc(size * sizeof(double *));
+            for (int i = 0; i < size; i++) {
+                prop->proxyModel[i] = malloc(4 * sizeof(double));
+            }
+            if (debug) {
+                printf("Successfully allocated space for proxy model\n");
+            }
+            PyObject * key, *value;
+            PyObject * xVal, *yVal, *zVal;
+            double x, y, z;
+            int i = 0;
+            Py_ssize_t
+                    pos = 0;
+            if (debug) {
+                printf("Starting to loop through each element in dictionary\n");
+                printf("The size of the dictionary is: %lo\n", size);
+            }
+            prop->num_points = size;
+            while (PyDict_Next(pProx, &pos, &key, &value)) {
+                xVal = PyTuple_GetItem(key, 0);
+                yVal = PyTuple_GetItem(key, 1);
+                zVal = PyTuple_GetItem(key, 2);
+                x = PyFloat_AsDouble(xVal);
+                y = PyFloat_AsDouble(yVal);
+                z = PyFloat_AsDouble(zVal);
+                if (debug) {
+                    printf("Working on point [%f, %f, %f], the value is: %f\n", x, y, z, PyFloat_AsDouble(value));
+                }
+                if (x == -1 && PyErr_Occurred()) {
+                    PyErr_Print();
+                    fprintf(stderr, "Failed to read value %i in the proxy model.\n", i);
+                    exit(1);
+                }
+                prop->proxyModel[i][0] = x;
+                prop->proxyModel[i][1] = y;
+                prop->proxyModel[i][2] = z;
+                prop->proxyModel[i][3] = PyFloat_AsDouble(value);
+                i++;
+            }
+            if (debug) {
+                printf("Successfully read the proxy model\n");
+                printf("Successfully set the proxy model\n");
+            }
+            if (debug) {
+                printf("Successfully populated new properties structure!\n");
+                dump_properties(*prop);
+            }
+
+        } else {
+            Py_DECREF(pFunc);
+            Py_DECREF(pModule);
+            PyErr_Print();
+            fprintf(stderr, "Call failed\n");
+            exit(1);
+        }
+    } else {
+        if (PyErr_Occurred())
+            PyErr_Print();
+        fprintf(stderr, "Cannot find function \"%s\"\n", "scad_configure");
+    }
+    return 0;
+}
+
+
+int runMeshLabConfigure(Template template, PyObject *pModule, Properties *prop, int debug) {
+    if (debug) {
+        fprintf(stdout, "Starting to run MeshLab Configure.\n");
+    }
+    PyObject * pFunc;
+    pFunc = PyObject_GetAttrString(pModule, "meshlab_configure_cover");
+    /* pFunc is a new reference */
+
+    if (pFunc && PyCallable_Check(pFunc)) {
+        PyObject * pArgs, *pValue, *pArg1, *pArg2, *pArg3, *pBoundArg;
+        if (template.system != MeshLab) {
+            fprintf(stderr, "Tried to run MeshLab configure on system %i, which is not MeshLab.\n", template.system);
+            exit(1);
+        }
+        if (debug) {
+            printf("Calling a new round of MeshLab configure\n");
+        }
+        pArgs = PyTuple_New(9);
+        // The arguments will be: Sys_eps, alg_eps, and some access to the shape (filename?)
+        pArg1 = PyFloat_FromDouble(template.systemTolerance);
+        pArg2 = PyFloat_FromDouble(template.algorithmPrecision);
+        pArg3 = PyUnicode_DecodeFSDefault(template.model);
+        PyTuple_SetItem(pArgs, 0, pArg1);
+        PyTuple_SetItem(pArgs, 1, pArg2);
+        PyTuple_SetItem(pArgs, 2, pArg3);
+        for (int i = 0; i < 2; i++) {
+            for (int j = 0; j < 3; j++) {
+                pBoundArg = PyFloat_FromDouble(template.bounds[i][j]);
+                PyTuple_SetItem(pArgs, 3 + 3 * i + j, pBoundArg);
+            }
+        }
+        pValue = PyTuple_New(3);
+        pValue = PyObject_CallObject(pFunc, pArgs);
+        if (pValue != NULL) {
+            PyObject * pSurfAr, *pVol, *pProx;
+            PyObject * pSize;
+            if (!PyTuple_CheckExact(pValue)) {
+                fprintf(stderr, "Did not receive a tuple from function call, exiting.\n");
+                exit(1);
+            }
+            if (debug) {
+                printf("The length of the tuple: %lo\n", PyTuple_Size(pValue));
+            }
+            pSurfAr = PyTuple_GetItem(pValue, 0);
+            pVol = PyTuple_GetItem(pValue, 1);
+            pProx = PyTuple_GetItem(pValue, 2);
+            prop->surfaceArea = PyFloat_AsDouble(pSurfAr);
+            if (debug) {
+                printf("Surface Area: %f\n", prop->surfaceArea);
+            }
+            prop->volume = PyFloat_AsDouble(pVol);
+            pSize = PyLong_FromSsize_t(PyDict_Size(pProx));
+            long size = PyLong_AsLong(pSize);
+            prop->proxyModel = malloc(size * sizeof(double *));
+            for (int i = 0; i < size; i++) {
+                prop->proxyModel[i] = malloc(4 * sizeof(double));
+            }
+            if (debug) {
+                printf("Successfully allocated space for proxy model\n");
+            }
+            PyObject * key, *value;
+            PyObject * xVal, *yVal, *zVal;
+            double x, y, z;
+            int i = 0;
+            Py_ssize_t
+            pos = 0;
+            if (debug) {
+                printf("Starting to loop through each element in dictionary\n");
+                printf("The size of the dictionary is: %lo\n", size);
+            }
+            prop->num_points = size;
+            while (PyDict_Next(pProx, &pos, &key, &value)) {
+                xVal = PyTuple_GetItem(key, 0);
+                yVal = PyTuple_GetItem(key, 1);
+                zVal = PyTuple_GetItem(key, 2);
+                x = PyFloat_AsDouble(xVal);
+                y = PyFloat_AsDouble(yVal);
+                z = PyFloat_AsDouble(zVal);
+                if (debug) {
+                    printf("Working on point [%f, %f, %f]\n", x, y, z);
+                }
+                if (x == -1 && PyErr_Occurred()) {
+                    PyErr_Print();
+                    fprintf(stderr, "Failed to read value %i in the proxy model.\n", i);
+                    exit(1);
+                }
+                prop->proxyModel[i][0] = x;
+                prop->proxyModel[i][1] = y;
+                prop->proxyModel[i][2] = z;
+                prop->proxyModel[i][3] = PyFloat_AsDouble(value);
+                i++;
+            }
+            if (debug) {
+                printf("Successfully read the proxy model\n");
+                printf("Successfully set the proxy model\n");
+            }
+            if (debug) {
+                printf("Successfully populated new properties sructure!\n");
+                dump_properties(*prop);
+            }
+        } else {
+            Py_DECREF(pFunc);
+            Py_DECREF(pModule);
+            PyErr_Print();
+            fprintf(stderr, "Call failed\n");
+            exit(1);
+        }
+    } else {
+        if (PyErr_Occurred())
+            PyErr_Print();
+        fprintf(stderr, "Cannot find function \"%s\"\n", "meshlab_configure");
+    }
+    return 0;
+}
+
+
+int startConfigureScript(Properties *props[2], Template template1, Template template2, int debug) {
+    Properties *prop1 = props[0];
+    Properties *prop2 = props[1];
+//    Properties *props[2];
     Template templates[2];
     templates[0] = template1;
     templates[1] = template2;
-    if (template1.system == OpenCasCade || template2.system == OpenCasCade) {
-        PyObject * pName, *pModule, *pFunc;
+    if (template1.system == OpenCasCade || template2.system == OpenCasCade || template1.system == OpenSCAD ||
+        template2.system == OpenSCAD) {
+        PyObject * pName, *pModule;
         size_t stringsize;
         Py_SetPath(Py_DecodeLocale(
                 "/home/daniel/anaconda3/lib/python36.zip:/home/daniel/anaconda3/lib/python3.6:/home/daniel/anaconda3/lib/python3.6/lib-dynload:/home/daniel/anaconda3/lib/python3.6/site-packages",
@@ -264,121 +608,44 @@ Properties *startConfigureScript(Template template1, Template template2, int deb
         pModule = PyImport_Import(pName);
         Py_DECREF(pName);
         if (pModule != NULL) {
-            pFunc = PyObject_GetAttrString(pModule, "occ_configure");
-            /* pFunc is a new reference */
-
-            if (pFunc && PyCallable_Check(pFunc)) {
-                for (int which_template = 0; which_template < 2; which_template++) {
-                    PyObject * pArgs, *pValue, *pArg1, *pArg2, *pArg3, *pBoundArg;
-                    Template template = templates[which_template];
-                    if (template.system != OpenCasCade) {
-                        continue;
-                    }
-                    if (debug) {
-                        printf("Calling a new round of occ configure\n");
-                    }
-                    pArgs = PyTuple_New(9);
-                    // The arguments will be: Sys_eps, alg_eps, and some access to the shape (filename?)
-                    pArg1 = PyFloat_FromDouble(template.systemTolerance);
-                    pArg2 = PyFloat_FromDouble(template.algorithmPrecision);
-                    pArg3 = PyUnicode_DecodeFSDefault(template.model);
-                    PyTuple_SetItem(pArgs, 0, pArg1);
-                    PyTuple_SetItem(pArgs, 1, pArg2);
-                    PyTuple_SetItem(pArgs, 2, pArg3);
-                    for (int i = 0; i < 2; i++) {
-                        for (int j = 0; j < 3; j++) {
-                            pBoundArg = PyFloat_FromDouble(template.bounds[i][j]);
-                            PyTuple_SetItem(pArgs, 3 + 3 * i + j, pBoundArg);
-                        }
-                    }
-                    pValue = PyTuple_New(3);
-                    pValue = PyObject_CallObject(pFunc, pArgs);
-                    if (pValue != NULL) {
-                        PyObject * pSurfAr, *pVol, *pProx;
-                        PyObject * pSize;
-                        if (!PyTuple_CheckExact(pValue)) {
-                            fprintf(stderr, "Did not receive a tuple from function call, exiting.\n");
-                            exit(1);
-                        }
-                        if (debug) {
-                            printf("The length of the tuple: %lo\n", PyTuple_Size(pValue));
-                        }
-                        pSurfAr = PyTuple_GetItem(pValue, 0);
-                        pVol = PyTuple_GetItem(pValue, 1);
-                        pProx = PyTuple_GetItem(pValue, 2);
-                        props[which_template]->surfaceArea = PyFloat_AsDouble(pSurfAr);
-                        if (debug) {
-                            printf("Surface Area: %f\n", props[which_template]->surfaceArea);
-                        }
-                        props[which_template]->volume = PyFloat_AsDouble(pVol);
-                        pSize = PyLong_FromSsize_t(PyDict_Size(pProx));
-                        long size = PyLong_AsLong(pSize);
-                        props[which_template]->proxyModel = malloc(size * sizeof(double *));
-                        for (int i = 0; i < size; i++) {
-                            props[which_template]->proxyModel[i] = malloc(4 * sizeof(double));
-                        }
-                        if (debug) {
-                            printf("Successfully allocated space for proxy model\n");
-                        }
-                        PyObject * key, *value;
-                        PyObject * xVal, *yVal, *zVal;
-                        double x, y, z;
-                        int i = 0;
-                        Py_ssize_t
-                        pos = 0;
-                        if (debug) {
-                            printf("Starting to loop through each element in dictionary\n");
-                            printf("The size of the dictionary is: %lo\n", size);
-                        }
-                        props[which_template]->num_points = size;
-                        while (PyDict_Next(pProx, &pos, &key, &value)) {
-                            xVal = PyTuple_GetItem(key, 0);
-                            yVal = PyTuple_GetItem(key, 1);
-                            zVal = PyTuple_GetItem(key, 2);
-                            x = PyFloat_AsDouble(xVal);
-                            y = PyFloat_AsDouble(yVal);
-                            z = PyFloat_AsDouble(zVal);
-                            if (debug) {
-                                printf("Working on point [%f, %f, %f]\n", x, y, z);
-                            }
-                            if (x == -1 && PyErr_Occurred()) {
-                                PyErr_Print();
-                                fprintf(stderr, "Failed to read value %i in the proxy model.\n", i);
-                                exit(1);
-                            }
-                            props[which_template]->proxyModel[i][0] = x;
-                            props[which_template]->proxyModel[i][1] = y;
-                            props[which_template]->proxyModel[i][2] = z;
-                            props[which_template]->proxyModel[i][3] = PyFloat_AsDouble(value);
-                            i++;
-                        }
-                        if (debug) {
-                            printf("Successfully read the proxy model\n");
-                            printf("Successfully set the proxy model\n");
-                        }
-                        if (debug) {
-                            printf("Successfully populated new properties sructure!\n");
-                        }
-                    } else {
-                        Py_DECREF(pFunc);
-                        Py_DECREF(pModule);
-                        PyErr_Print();
-                        fprintf(stderr, "Call failed\n");
-                        exit(1);
-                    }
+            if (template1.system == OpenSCAD) {
+                if (runSCADConfigure(template1, pModule, prop1, debug) != 0) {
+                    fprintf(stderr, "Failed to run SCAD configure for %s\n", template1.model);
                 }
-            } else {
-                if (PyErr_Occurred())
-                    PyErr_Print();
-                fprintf(stderr, "Cannot find function \"%s\"\n", "occ_configure");
+            }
+            if (template2.system == OpenSCAD) {
+                if (runSCADConfigure(template2, pModule, prop2, debug) != 0) {
+                    fprintf(stderr, "Failed to run SCAD configure for %s\n", template2.model);
+                }
+            }
+            if (template1.system == OpenCasCade) {
+                if (runOCCConfigure(template1, pModule, prop1, debug) != 0) {
+                    fprintf(stderr, "Failed to run OCC configure for %s\n", template1.model);
+                    exit(1);
+                }
+            }
+            if (template2.system == OpenCasCade) {
+                if (runOCCConfigure(template2, pModule, prop2, debug) != 0) {
+                    fprintf(stderr, "Failed to run OCC configure for %s\n", template2.model);
+                }
+            }
+            if (template1.system == MeshLab) {
+                if (runMeshLabConfigure(template1, pModule, prop1, debug) != 0) {
+                    fprintf(stderr, "Failed to run MeshLab configure for %s\n", template1.model);
+                }
+            }
+            if (template2.system == MeshLab) {
+                if (runMeshLabConfigure(template2, pModule, prop2, debug) != 0) {
+                    fprintf(stderr, "Failed to run MeshLab configure for %s\n", template2.model);
+                }
             }
         } else {
             PyErr_Print();
             fprintf(stderr, "Failed to load py_interface.py\n");
             exit(1);
         }
-        Py_DECREF(pFunc);
-        Py_DECREF(pModule);
+//        Py_DECREF(pFunc);
+//        Py_DECREF(pModule);
         if (Py_FinalizeEx() < 0) {
             fprintf(stderr, "Failed to close python connection\n");
             exit(1);
@@ -393,7 +660,11 @@ Properties *startConfigureScript(Template template1, Template template2, int deb
         fprintf(stderr, "System not recognized, aborting\n");
         exit(1);
     }
-    return *props;
+    if (debug) {
+        printf("props[0] is point in the method at %p and props[1] at %p\n", props[0], props[1]);
+        printf("props[1] has volume: %f\n", props[1]->volume);
+    }
+    return 0;
 }
 
 int setTolerance(float tol) {
@@ -405,7 +676,8 @@ float getTolerance() {
     return tolerance;
 }
 
-int performEvaluation(Properties p1, Properties p2, char *testName, Template temp1, Template temp2, double hausdorff, int debug) {
+int performEvaluation(Properties p1, Properties p2, char *testName, Template temp1, Template temp2, double hausdorff,
+                      int debug) {
     if (debug) {
         printf("Starting to write to output file %s\n.", testName);
     }
@@ -414,36 +686,39 @@ int performEvaluation(Properties p1, Properties p2, char *testName, Template tem
         fprintf(stderr, "Failed to open file to perform evaluation for test %s\n", testName);
         exit(1);
     }
-    fprintf(fp, "Running test %s on model 1 %s and model 2 %s:\n\n", testName, temp1.model, temp2.model);
-    char *systems[3] = {"Rhino", "OpenCasCade", "OpenSCAD"};
+    fprintf(fp, "Running test %s on model 1 %s and model 2 %s:\n\n", testName, rindex(temp1.model, '/') + 1,
+            rindex(temp2.model, '/') + 1);
+    char *systems[4] = {"Rhino", "OpenCasCade", "OpenSCAD", "MeshLab"};
 
     char vol_report[128]; // NOTE: Max buffer size of 64 characters here
     if (fabs(p1.volume - p2.volume) < pow(getTolerance(), 3))
-        sprintf(vol_report, "Systems %s and %s have compatible volumes with a difference of %f\n",
+        sprintf(vol_report, "Systems %s and %s have compatible volumes with a difference of %.8f\n",
                 systems[temp1.system], systems[temp2.system], p1.volume - p2.volume);
     else
-        sprintf(vol_report, "Systems %s and %s have incompatible volumes with a difference of %f\n",
+        sprintf(vol_report, "Systems %s and %s have incompatible volumes with a difference of %.8f\n",
                 systems[temp1.system], systems[temp2.system], p1.volume - p2.volume);
 
     char area_report[128];
-    if (fabs(p1.surfaceArea - p2.surfaceArea) < pow(getTolerance(), 2))
-        sprintf(area_report, "Systems %s and %s have compatible areas with a difference of %f\n",
+    if (fabs(p1.surfaceArea - p2.surfaceArea) < pow(getTolerance(), 2)) // wait for calculations
+        sprintf(area_report, "Systems %s and %s have compatible areas with a difference of %.8f\n",
                 systems[temp1.system], systems[temp2.system], p1.surfaceArea - p2.surfaceArea);
     else
-        sprintf(area_report, "Systems %s and %s have incompatible areas with a difference of %f\n",
+        sprintf(area_report, "Systems %s and %s have incompatible areas with a difference of %.8f\n",
                 systems[temp1.system], systems[temp2.system], p1.surfaceArea - p2.surfaceArea);
 
     // How exactly are we comparing Hausdorff Distances? Are we looking at the distance between the two proxy models?
     // for now the evaluation just won't make much sense
     char dist_report[128];
     if (fabs(hausdorff) < getTolerance()) //tolerance for hausdorff alg is max(systems)
-        sprintf(dist_report, "Systems %s and %s have compatible distances with a difference of %f\n",
+        sprintf(dist_report, "Systems %s and %s have a compatible Hausdorff Distance of %.8f\n",
                 systems[temp1.system], systems[temp2.system], hausdorff);
     else
-        sprintf(dist_report, "Systems %s and %s have incompatible distances with a difference of %f\n",
+        sprintf(dist_report, "Systems %s and %s have an incompatible Hausdorff Distance of %.8f\n",
                 systems[temp1.system], systems[temp2.system], hausdorff);
 
-    fprintf(fp, "Volume:\n%s\nSurface Area:\n%s\nHausdorff Distance:\n%s", vol_report, area_report, dist_report);
+    fprintf(fp,
+            "Volume:\n%sVolume of first proxy model: %.8f, volume of second proxy model: %.8f\n\nSurface Area:\n%sSurface area of first proxy model: %.8f, Surface area of second proxy model: %.8f\n\nHausdorff Distance:\n%s",
+            vol_report, p1.volume, p2.volume, area_report, p1.surfaceArea, p2.surfaceArea, dist_report);
     int fpc = fclose(fp);
     if (fpc != 0) {
         fprintf(stderr, "Failed to close file %s\n", testName);
@@ -462,21 +737,48 @@ double hausdorff_distance(Properties prop1, Properties prop2, int debug) {
     double min_dist = LONG_MAX;
     for (int i = 0; i < prop1.num_points; i++) {
         for (int j = 0; j < prop2.num_points; j++) {
+            if (debug) {
+                printf("i=%i, j=%i\n", i, j);
+            }
             dist = sqrt(pow((prop1.proxyModel[i][0] - prop2.proxyModel[j][0]), 2) +
                         pow((prop1.proxyModel[i][1] - prop2.proxyModel[j][1]), 2) +
                         pow((prop1.proxyModel[i][2] - prop2.proxyModel[j][2]), 2));
             if (debug) {
                 printf("Working on point 1 at [%f, %f, %f] and point 2 at [%f, %f, %f] with a distance of %f.\n",
-                       prop1.proxyModel[i][0], prop2.proxyModel[i][1], prop1.proxyModel[i][2], prop2.proxyModel[j][0],
-                       prop1.proxyModel[j][1], prop2.proxyModel[j][2], dist);
+                       prop1.proxyModel[i][0], prop1.proxyModel[i][1], prop1.proxyModel[i][2],
+                       prop2.proxyModel[j][0],
+                       prop2.proxyModel[j][1], prop2.proxyModel[j][2], dist);
             }
             if (dist < min_dist) min_dist = dist;
         }
         if (min_dist > max_dist) max_dist = min_dist;
     }
-    return max_dist;
+    double max_dist1 = max_dist;
+    max_dist = 0;
+    min_dist = LONG_MAX;
+    for (int j = 0; j < prop2.num_points; j++) {
+        for (int i = 0; i < prop1.num_points; i++) {
+            if (debug) {
+                printf("i=%i, j=%i\n", i, j);
+            }
+            dist = sqrt(pow((prop1.proxyModel[i][0] - prop2.proxyModel[j][0]), 2) +
+                        pow((prop1.proxyModel[i][1] - prop2.proxyModel[j][1]), 2) +
+                        pow((prop1.proxyModel[i][2] - prop2.proxyModel[j][2]), 2));
+            if (debug) {
+                printf("Working on point 1 at [%f, %f, %f] and point 2 at [%f, %f, %f] with a distance of %f.\n",
+                       prop1.proxyModel[i][0], prop1.proxyModel[i][1], prop1.proxyModel[i][2],
+                       prop2.proxyModel[j][0],
+                       prop2.proxyModel[j][1], prop2.proxyModel[j][2], dist);
+            }
+            if (dist < min_dist) min_dist = dist;
+        }
+        if (min_dist > max_dist) max_dist = min_dist;
+    }
+    if (debug) {
+        printf("============FINISHED HAUSDORFF DISTANCE CALCULATION===========\n");
+    }
+    return max_dist > max_dist1 ? max_dist : max_dist1;
 }
-
 
 int main(int argc, char *argv[]) {
     if (argc != 5) {
@@ -488,7 +790,7 @@ int main(int argc, char *argv[]) {
     char *test_name = argv[3];
     char *endptr;
     float tol = strtof(argv[4], &endptr);
-    int debug = FALSE;
+    int debug = TRUE;
     if (*endptr != '\0') {
         fprintf(stderr, "Failed to read tolerance, only got %f\n", tol);
         exit(1);
@@ -496,27 +798,32 @@ int main(int argc, char *argv[]) {
     if (debug) {
         printf("System tolerance is: %f\n", tol);
     }
-    setTolerance(tol);
 
     Template temp1 = readTemplate(file1, test_name, debug);
     Template temp2 = readTemplate(file2, test_name, debug);
+    setTolerance(temp1.algorithmPrecision + temp2.algorithmPrecision);
     if (debug) {
         dump_template(temp1);
     }
-    Properties *props;
-    props = startConfigureScript(temp1, temp2, debug);
+    Properties dec_prop1, dec_prop2;
+    Properties *props[2];
+    props[0] = &dec_prop1;
+    props[1] = &dec_prop2;
+    startConfigureScript(props, temp1, temp2, debug);
     if (debug) {
         printf("Actually got the properties!!!!!\n");
-        dump_properties(*props);
-        dump_properties(*(props + 1));
+        printf("props[0] is pointing outside the method at %p and props[1] at %p\n", props[0], props[1]);
+        printf("props[1] has volume: %f\n", props[1]->volume);
+        dump_properties(*props[1]);
+        dump_properties(*props[0]);
     }
-    Properties prop1 = *props;
-    Properties prop2 = *(props + 1);
+    Properties prop1 = *props[0];
+    Properties prop2 = *props[1];
     if (debug) {
-        printf("Testing successful property construction:\nSurface Area: %f\nVolume: %f\n", prop1.surfaceArea,
-               prop1.volume);
+        printf("Testing successful property construction:\nSurface Area: %f\nVolume: %f\n", prop2.surfaceArea,
+               prop2.volume);
     }
-    double dist = hausdorff_distance(prop1, prop2, debug);
+    double dist = hausdorff_distance(prop1, prop2, FALSE);
     if (debug) {
         printf("Testing successful hausdorff calculation:\n: %f\n", dist);
     }

@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<template>
+    <OS>Ubuntu 14.01</OS>
+    <CAD_System_and_Version><CAD_System>3</CAD_System> <!--0:Rhino, 1:OCC, 2:OpenSCAD, 3:MeshLab--><Version></Version></CAD_System_and_Version>
+    <API_options>1<!--{ModelingAlgorithms, FoundationClasses, ModelingData} --></API_options>
+    <Script_language>1 <!--{Python, C++}--></Script_language>
+    <Queries_to_use><PMQ>1</PMQ><distance>1</distance><volume>1</volume><area>1</area><surface_properties>0</surface_properties><hausdorff>0</hausdorff></Queries_to_use>
+    <Unit_parameters>mm</Unit_parameters>
+    <Tolerances><Abs_tol>.00000001</Abs_tol><Par_tol>.000001</Par_tol><ang_tol>.000000000001</ang_tol><alg_tol>.2</alg_tol></Tolerances>
+    <Tolerance_scales>1</Tolerance_scales>
+
+    <Model_Information><FileName>/home/daniel/CLionProjects/DTest/data/cube.ply</FileName><Topology>Polysurface</Topology><Model_dim>3</Model_dim><Boundary_dim>2</Boundary_dim> <!-- no boundary --><Convexity>1</Convexity> <!-- 1 for convex, 0 for non-convex --><Semilocal_simpleconnectivity>1</Semilocal_simpleconnectivity> <!--1 for connected, 0 not connected--></Model_Information>
+
+    <!--Additional Information if available-->
+
+    <Representation_scheme>Mesh</Representation_scheme>
+    <Bounding_box_coords><xmin>-.8</xmin><ymin>0</ymin><zmin>0</zmin><xmax>.9</xmax><ymax>1.42</ymax><zmax>1</zmax></Bounding_box_coords>
+</template>
