@@ -24,11 +24,18 @@
 
 #define HOSTNAME "localhost"
 
+/**
+ * Enumerator for supported system types
+ * (Maybe should be in DTest.h)
+ */
 enum systemTypes {
     Rhino = 0, OpenCasCade = 1, OpenSCAD = 2, MeshLab = 3
 };
 
-
+/**
+ * Dumps the contents (not all) of temp
+ * @param temp The Template struct to dump
+ */
 void dump_template(Template temp) {
     printf("\n========DUMPING TEMPLATE FILE=========\n");
     printf("Model: %s\n", temp.model);
@@ -43,7 +50,10 @@ void dump_template(Template temp) {
     printf("========END DUMP=========\n\n");
 }
 
-
+/**
+ * Dumps the contents of prop
+ * @param prop The Properties struct to dump
+ */
 void dump_properties(Properties prop) {
     printf("\n========DUMPING PROPERTIES FILE=========\n");
     printf("Surface Area: %f\n", prop.surfaceArea);
@@ -53,109 +63,127 @@ void dump_properties(Properties prop) {
     printf("========END DUMP=========\n\n");
 }
 
-
+/**
+ * Part of readXML, takes in the system version
+ * @param out Template to write to
+ * @param sys_root Current XML root node
+ * @param doc XML document
+ */
 void readSysVersion(Template *out, xmlNodePtr sys_root, xmlDocPtr doc) {
     xmlNodePtr child_node = sys_root->children;
     while (child_node) {
         xmlChar *content = xmlNodeListGetString(doc, child_node->xmlChildrenNode, 1);
         if (xmlStrEqual(child_node->name, (const xmlChar *) "CAD_System")) {
             out->system = atoi((char *) content);
-//            xmlFree(content);
         }
         child_node = child_node->next;
     }
 }
 
+/**
+ * Part of readXML, takes in the bounds
+ * @param out Template to write to
+ * @param sys_root Current XML root node
+ * @param doc XML document
+ */
 void readAABBCoords(Template *out, xmlNodePtr sys_root, xmlDocPtr doc) {
     xmlNodePtr child_node = sys_root->children;
     while (child_node) {
         if (xmlStrEqual(child_node->name, (const xmlChar *) "xmin")) {
             xmlChar *content = xmlNodeListGetString(doc, child_node->xmlChildrenNode, 1);
             out->bounds[0][0] = atof((char *) content);
-//            xmlFree(content);
         }
         if (xmlStrEqual(child_node->name, (const xmlChar *) "ymin")) {
             xmlChar *content = xmlNodeListGetString(doc, child_node->xmlChildrenNode, 1);
             out->bounds[0][1] = atof((char *) content);
-//            xmlFree(content);
         }
         if (xmlStrEqual(child_node->name, (const xmlChar *) "zmin")) {
             xmlChar *content = xmlNodeListGetString(doc, child_node->xmlChildrenNode, 1);
             out->bounds[0][2] = atof((char *) content);
-//            xmlFree(content);
         }
         if (xmlStrEqual(child_node->name, (const xmlChar *) "xmax")) {
             xmlChar *content = xmlNodeListGetString(doc, child_node->xmlChildrenNode, 1);
             out->bounds[1][0] = atof((char *) content);
-//            xmlFree(content);
         }
         if (xmlStrEqual(child_node->name, (const xmlChar *) "ymax")) {
             xmlChar *content = xmlNodeListGetString(doc, child_node->xmlChildrenNode, 1);
             out->bounds[1][1] = atof((char *) content);
-//            xmlFree(content);
         }
         if (xmlStrEqual(child_node->name, (const xmlChar *) "zmax")) {
             xmlChar *content = xmlNodeListGetString(doc, child_node->xmlChildrenNode, 1);
             out->bounds[1][2] = atof((char *) content);
-//            xmlFree(content);
         }
         child_node = child_node->next;
     }
 }
 
+/**
+ * Unused part of readXML, takes in the list of possible queries and stores them using a bitmask (untested)
+ * @param out Template to write to
+ * @param sys_root Current XML root node
+ * @param doc XML document
+ */
 void readQueries(Template *out, xmlNodePtr sys_root, xmlDocPtr doc) {
     xmlNodePtr child_node = sys_root->children;
     long bitmask = 0;
     int k = 0;
     while (child_node) {
-//        xmlChar *content = xmlNodeListGetString(doc, child_node->xmlChildrenNode, 1);
-//        if (atoi((char *) content) == 1) {
         bitmask += pow(2, k);
-//        }
         k += 1;
         child_node = child_node->next;
     }
     out->queries = bitmask;
 }
 
+/**
+ * Part of readXML, takes in the model info
+ * @param out Template to write to
+ * @param sys_root Current XML root node
+ * @param doc XML document
+ */
 void readModelInfo(Template *out, xmlNodePtr sys_root, xmlDocPtr doc) {
     xmlNodePtr child_node = sys_root->children;
     while (child_node) {
         if (xmlStrEqual(child_node->name, (const xmlChar *) "FileName")) {
             xmlChar *content = xmlNodeListGetString(doc, child_node->xmlChildrenNode, 1);
             out->model = (char *) content;
-//            xmlFree(content);
         } else if (xmlStrEqual(child_node->name, (const xmlChar *) "Convexity")) {
             xmlChar *content = xmlNodeListGetString(doc, child_node->xmlChildrenNode, 1);
             out->convex = atoi((char *) content);
-//            xmlFree(content);
         } else if (xmlStrEqual(child_node->name, (const xmlChar *) "Semilocal_simpleconnectivity")) {
             xmlChar *content = xmlNodeListGetString(doc, child_node->xmlChildrenNode, 1);
             out->semilocallysimplyconnected = (int) strtol((char *) content, NULL, 0);
-//            xmlFree(content);
         }
         child_node = child_node->next;
     }
 }
 
+/**
+ * Part of readXML, takes in the tolerances
+ * @param out Template to write to
+ * @param sys_root Current XML root node
+ * @param doc XML document
+ */
 void readTolerances(Template *out, xmlNodePtr sys_root, xmlDocPtr doc) {
     xmlNodePtr child_node = sys_root->children;
     while (child_node) {
         xmlChar *content = xmlNodeListGetString(doc, child_node->xmlChildrenNode, 1);
         if (xmlStrEqual(child_node->name, (const xmlChar *) "Abs_tol")) {
             out->systemTolerance = strtof((char *) content, NULL);
-//            xmlFree(content);
-//            child_node = child_node->next;
         }
         if (xmlStrEqual(child_node->name, (const xmlChar *) "alg_tol")) {
             out->algorithmPrecision = strtof((char *) content, NULL);
-//            xmlFree(content);
-//            child_node = child_node->next;
         }
         child_node = child_node->next;
     }
 }
 
+/**
+ * The main method to read the given template files
+ * @param out a reference to a template that will be populated
+ * @param cur_parent The root no to read the xml contents under
+ * @param doc The actual xml document to read from
+ */
 void readXML(Template *out, xmlNodePtr cur_parent, xmlDocPtr doc, int debug) {
     xmlNodePtr cur_node = cur_parent->children;
     while (cur_node) {
@@ -185,6 +213,13 @@ void readXML(Template *out, xmlNodePtr cur_parent, xmlDocPtr doc, int debug) {
     }
 }
 
+/**
+ * A wrapper for radXML that avoids low level xml control
+ * @param filename The name of the xml file
+ * @param testName The test name, which currently defaults to the filename
+ * @param debug A flag for whether to debug
+ * @return A populated Template struct
+ */
 Template readTemplate(char *filename, char *testName, int debug) {
     xmlDocPtr doc;
     doc = xmlParseFile(filename);
@@ -201,6 +236,12 @@ Template readTemplate(char *filename, char *testName, int debug) {
     return out;
 }
 
+/**
+ * A currently unused method to perform network queries
+ * @param host
+ * @param port
+ * @return
+ */
 // source: https://gist.github.com/nolim1t/126991
 int socket_connect(char *host, in_port_t port) {
     struct hostent *hp;
@@ -230,7 +271,14 @@ int socket_connect(char *host, in_port_t port) {
     return sock;
 }
 
-
+/**
+ * The main call to compute the properties of a template that is an OCC system
+ * @param template The given template containing settings etc
+ * @param pModule The Python module to connect to
+ * @param prop The Properties struct to populate
+ * @param debug A flag for debug mode
+ * @return 0 for success, 1 for failure
+ */
 int runOCCConfigure(Template template, PyObject *pModule, Properties *prop, int debug) {
     PyObject * pFunc;
     pFunc = PyObject_GetAttrString(pModule, "occ_configure");
@@ -248,6 +296,7 @@ int runOCCConfigure(Template template, PyObject *pModule, Properties *prop, int 
         }
         pArgs = PyTuple_New(9);
         // The arguments will be: Sys_eps, alg_eps, and some access to the shape (filename?)
+        // Convert arguments to Python types
         pArg1 = PyFloat_FromDouble(template.systemTolerance);
         pArg2 = PyFloat_FromDouble(template.algorithmPrecision);
         pArg3 = PyUnicode_DecodeFSDefault(template.model);
@@ -261,6 +310,7 @@ int runOCCConfigure(Template template, PyObject *pModule, Properties *prop, int 
             }
         }
         pValue = PyTuple_New(3);
+        // Callthe function (I believe it waits for termination without needing to call Wait(NULL)
         pValue = PyObject_CallObject(pFunc, pArgs);
         if (pValue != NULL) {
             PyObject * pSurfAr, *pVol, *pProx;
@@ -272,6 +322,7 @@ int runOCCConfigure(Template template, PyObject *pModule, Properties *prop, int 
             if (debug) {
                 printf("The length of the tuple: %lo\n", PyTuple_Size(pValue));
             }
+            // Get arguments back and make them usable
             pSurfAr = PyTuple_GetItem(pValue, 0);
             pVol = PyTuple_GetItem(pValue, 1);
             pProx = PyTuple_GetItem(pValue, 2);
@@ -280,11 +331,12 @@ int runOCCConfigure(Template template, PyObject *pModule, Properties *prop, int 
                 printf("Surface Area: %f\n", prop->surfaceArea);
             }
             prop->volume = PyFloat_AsDouble(pVol);
+            // The point array might be large, so we need to do some extra work
             pSize = PyLong_FromSsize_t(PyDict_Size(pProx));
             long size = PyLong_AsLong(pSize);
             prop->proxyModel = malloc(size * sizeof(double *));
             for (int i = 0; i < size; i++) {
-                prop->proxyModel[i] = malloc(4 * sizeof(double));
+                prop->proxyModel[i] = malloc(4 * sizeof(double)); // Each entry is [x,y,z,rad]
             }
             if (debug) {
                 printf("Successfully allocated space for proxy model\n");
@@ -300,6 +352,7 @@ int runOCCConfigure(Template template, PyObject *pModule, Properties *prop, int 
                 printf("The size of the dictionary is: %lo\n", size);
             }
             prop->num_points = size;
+            // Retrieves all the points
             while (PyDict_Next(pProx, &pos, &key, &value)) {
                 xVal = PyTuple_GetItem(key, 0);
                 yVal = PyTuple_GetItem(key, 1);
@@ -346,6 +399,14 @@ int runOCCConfigure(Template template, PyObject *pModule, Properties *prop, int 
 }
 
 
+/**
+ * The main call to compute the properties of a template that is a SCAD system
+ * @param template The given template containing settings etc
+ * @param pModule The Python module to connect to
+ * @param prop The Properties struct to populate
+ * @param debug A flag for debug mode
+ * @return 0 for success, 1 for failure
+ */
 int runSCADConfigure(Template template, PyObject *pModule, Properties *prop, int debug) {
     PyObject * pFunc, *pValue, *pArgs;
     pFunc = PyObject_GetAttrString(pModule, "scad_configure");
@@ -461,6 +522,14 @@ int runSCADConfigure(Template template, PyObject *pModule, Properties *prop, int
 }
 
 
+/**
+ * The main call to compute the properties of a template that is a MeshLab system
+ * @param template The given template containing settings etc
+ * @param pModule The Python module to connect to
+ * @param prop The Properties struct to populate
+ * @param debug A flag for debug mode
+ * @return 0 for success, 1 for failure
+ */
 int runMeshLabConfigure(Template template, PyObject *pModule, Properties *prop, int debug) {
     if (debug) {
         fprintf(stdout, "Starting to run MeshLab Configure.\n");
@@ -577,6 +646,14 @@ int runMeshLabConfigure(Template template, PyObject *pModule, Properties *prop, 
 }
 
 
+/**
+ * The main call to compute the properties of a template that is a Rhino system
+ * @param template The given template containing settings etc
+ * @param pModule The Python module to connect to
+ * @param prop The Properties struct to populate
+ * @param debug A flag for debug mode
+ * @return 0 for success, 1 for failure
+ */
 int runRhinoConfigure(Template template, PyObject *pModule, Properties *prop, int debug) {
     // For now, this only assumes that the given filename is a cover and does not do complex calculations
     PyObject * pFunc;
@@ -688,22 +765,32 @@ int runRhinoConfigure(Template template, PyObject *pModule, Properties *prop, in
 
 }
 
-
+/**
+ * The wrapper function for the configure phase
+ * @param props Pointers to the Properties structs to populate
+ * @param template1 The first Template
+ * @param template2 The second Template
+ * @param debug A flag for debug
+ * @return 0 for success, exit on failure
+ */
 int startConfigureScript(Properties *props[2], Template template1, Template template2, int debug) {
     Properties *prop1 = props[0];
     Properties *prop2 = props[1];
-//    Properties *props[2];
     Template templates[2];
     templates[0] = template1;
     templates[1] = template2;
     if (template1.system == OpenCasCade || template2.system == OpenCasCade || template1.system == OpenSCAD ||
         template2.system == OpenSCAD || template1.system == Rhino || template2.system == Rhino) {
+        // Create the Python Connection- Janky AF
         PyObject * pName, *pModule;
         size_t stringsize;
+        // Forcibly sets the path to include all Python Libraries- would need to be changed on another system
         Py_SetPath(Py_DecodeLocale(
                 "/home/daniel/anaconda3/lib/python36.zip:/home/daniel/anaconda3/lib/python3.6:/home/daniel/anaconda3/lib/python3.6/lib-dynload:/home/daniel/anaconda3/lib/python3.6/site-packages",
                 &stringsize));
         Py_Initialize();
+        // Again, forcibly makes sure we are using the correct Python- was having issues with this,
+        // and may have overdone it
         Py_SetPythonHome(Py_DecodeLocale("/home/daniel/anaconda3/lib/python3.6m", &stringsize));
         Py_SetProgramName(Py_DecodeLocale("/home/daniel/anaconda3/bin/python3.6", &stringsize));
         if (debug) {
@@ -712,14 +799,16 @@ int startConfigureScript(Properties *props[2], Template template1, Template temp
             printf("The program name: %s\n", Py_EncodeLocale(Py_GetProgramName(), &stringsize));
             printf("The full paths in the program: %s\n", Py_EncodeLocale(Py_GetPath(), &stringsize));
         }
+        // This one is necessary, this is how it knows where your Python scripts are
         PyRun_SimpleString("import sys\n"
                            "sys.path.append(\"/home/daniel/PycharmProjects/ICSI\")\n"
                            "sys.path.append(\"/home/daniel/PycharmProjects/py_oce\")\n");
-//        pName = PyUnicode_DecodeFSDefault("hmm.py");
+        // Python is loaded, begin to load the specific module
         pName = PyUnicode_DecodeFSDefault("py_interface");
         pModule = PyImport_Import(pName);
         Py_DECREF(pName);
         if (pModule != NULL) {
+            // Call appropriate version of Configure depending on system- order matters!
             if (template1.system == OpenSCAD) {
                 if (runSCADConfigure(template1, pModule, prop1, debug) != 0) {
                     fprintf(stderr, "Failed to run SCAD configure for %s\n", template1.model);
@@ -766,14 +855,13 @@ int startConfigureScript(Properties *props[2], Template template1, Template temp
             fprintf(stderr, "Failed to load py_interface.py\n");
             exit(1);
         }
-//        Py_DECREF(pFunc);
-//        Py_DECREF(pModule);
         if (Py_FinalizeEx() < 0) {
             fprintf(stderr, "Failed to close python connection\n");
             exit(1);
         } else {
             Py_Finalize();
         }
+        // If we ever figure out the Rino compute server, changes would come here, as we wouldn't need Python
     } else if (template1.system == Rhino) {
         socket_connect(HOSTNAME, 80); // Might need to change ports
     } else if (template1.system == OpenSCAD || template2.system == OpenSCAD) {
@@ -789,15 +877,35 @@ int startConfigureScript(Properties *props[2], Template template1, Template temp
     return 0;
 }
 
+/**
+ * Basic functions to get and set DTest's tolerance
+ * @param tol The tolerance to set to
+ * @return 0
+ */
 int setTolerance(float tol) {
     tolerance = tol;
     return 0;
 }
 
+/**
+ * Get's DTest's tolerance
+ * @return tolerance
+ */
 float getTolerance() {
     return tolerance;
 }
 
+/**
+ * PerformsThe evaluation phase of DTest
+ * @param p1 The first Properties struct
+ * @param p2 The second Properties struct
+ * @param testName The name of the comparison test, will also be name of output
+ * @param temp1 The first Template struct
+ * @param temp2 The second Template struct
+ * @param hausdorff The hausdorff distance between the two covers
+ * @param debug A flag for whether to debug
+ * @return 0 for success, 1 for failure
+ */
 int performEvaluation(Properties p1, Properties p2, char *testName, Template temp1, Template temp2, double hausdorff,
                       int debug) {
     if (debug) {
@@ -849,7 +957,13 @@ int performEvaluation(Properties p1, Properties p2, char *testName, Template tem
     return 0;
 }
 
-
+/**
+ * Computes the Hausdorff Distance of the covers included in the two properties files
+ * @param prop1 First Properties struct
+ * @param prop2 Second Properties struct
+ * @param debug A flag for whether to debug
+ * @return The Hausdorff distance
+ */
 double hausdorff_distance(Properties prop1, Properties prop2, int debug) {
     if (debug) {
         printf("============STARTING HAUSDORFF DISTANCE CALCULATION===========\n");
@@ -902,6 +1016,12 @@ double hausdorff_distance(Properties prop1, Properties prop2, int debug) {
     return max_dist > max_dist1 ? max_dist : max_dist1;
 }
 
+/**
+ * The main file, which intends to be a CLI for the DTest system
+ * @param argc arg count
+ * @param argv arg vector
+ * @return 0 for success, 1 for failure
+ */
 int main(int argc, char *argv[]) {
     if (argc != 5) {
         printf("Usage: ./DTest <TemplateFile1> <TemplateFile2> <TestName> <Tolerance>\n");
@@ -921,6 +1041,7 @@ int main(int argc, char *argv[]) {
         printf("System tolerance is: %f\n", tol);
     }
 
+    // Creates and populates the template files
     Template temp1;
     temp1.templateName = file1;
     temp1 = readTemplate(file1, test_name, debug);
@@ -930,11 +1051,13 @@ int main(int argc, char *argv[]) {
     setTolerance(temp1.algorithmPrecision + temp2.algorithmPrecision);
     if (debug) {
         dump_template(temp1);
+        dump_template(temp2);
     }
     Properties dec_prop1, dec_prop2;
     Properties *props[2];
     props[0] = &dec_prop1;
     props[1] = &dec_prop2;
+    // The main part of the code, runs the configure script, passing workload over to Python backend
     startConfigureScript(props, temp1, temp2, debug);
     if (debug) {
         printf("Actually got the properties!!!!!\n");
@@ -949,12 +1072,13 @@ int main(int argc, char *argv[]) {
         printf("Testing successful property construction:\nSurface Area: %f\nVolume: %f\n", prop2.surfaceArea,
                prop2.volume);
     }
+    // Computes the Hausdorff distance
     double dist = hausdorff_distance(prop1, prop2, FALSE);
     if (debug) {
         printf("Testing successful hausdorff calculation:\n: %f\n", dist);
     }
 
-
+    // Performs Evaluation, writing to output test_name
     int eval = performEvaluation(prop1, prop2, test_name, temp1, temp2, dist, debug);
     if (eval != 0) {
         printf("Failed to perform evaluation\n");
