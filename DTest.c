@@ -577,6 +577,118 @@ int runMeshLabConfigure(Template template, PyObject *pModule, Properties *prop, 
 }
 
 
+int runRhinoConfigure(Template template, PyObject *pModule, Properties *prop, int debug) {
+    // For now, this only assumes that the given filename is a cover and does not do complex calculations
+    PyObject * pFunc;
+    pFunc = PyObject_GetAttrString(pModule, "rhino_configure");
+    /* pFunc is a new reference */
+
+    if (pFunc && PyCallable_Check(pFunc)) {
+
+        PyObject * pArgs, *pValue, *pArg1, *pArg2, *pArg3;
+        if (template.system != Rhino) {
+            fprintf(stderr, "Tried to run rhino configure on system %i, which is not Rhino.\n", template.system);
+            exit(1);
+        }
+        if (debug) {
+            printf("Calling a new round of rhino configure\n");
+        }
+        pArgs = PyTuple_New(3);
+        // The arguments will be: Sys_eps, alg_eps, and some access to the shape (filename?)
+        pArg1 = PyFloat_FromDouble(template.systemTolerance);
+        pArg2 = PyFloat_FromDouble(template.algorithmPrecision);
+        pArg3 = PyUnicode_DecodeFSDefault(template.model);
+        PyTuple_SetItem(pArgs, 0, pArg1);
+        PyTuple_SetItem(pArgs, 1, pArg2);
+        PyTuple_SetItem(pArgs, 2, pArg3);
+
+        pValue = PyTuple_New(3);
+        pValue = PyObject_CallObject(pFunc, pArgs);
+        if (pValue != NULL) {
+            PyObject * pSurfAr, *pVol, *pProx;
+            PyObject * pSize;
+            if (!PyTuple_CheckExact(pValue)) {
+                fprintf(stderr, "Did not receive a tuple from function call, exiting.\n");
+                exit(1);
+            }
+            if (debug) {
+                printf("The length of the tuple: %lo\n", PyTuple_Size(pValue));
+            }
+            pSurfAr = PyTuple_GetItem(pValue, 0);
+            pVol = PyTuple_GetItem(pValue, 1);
+            pProx = PyTuple_GetItem(pValue, 2);
+            prop->surfaceArea = PyFloat_AsDouble(pSurfAr);
+            if (debug) {
+                printf("Surface Area: %f\n", prop->surfaceArea);
+            }
+            prop->volume = PyFloat_AsDouble(pVol);
+            pSize = PyLong_FromSsize_t(PyDict_Size(pProx));
+            long size = PyLong_AsLong(pSize);
+            prop->proxyModel = malloc(size * sizeof(double *));
+            for (int i = 0; i < size; i++) {
+                prop->proxyModel[i] = malloc(4 * sizeof(double));
+            }
+            if (debug) {
+                printf("Successfully allocated space for proxy model\n");
+            }
+            PyObject * key, *value;
+            PyObject * xVal, *yVal, *zVal;
+            double x, y, z;
+            int i = 0;
+            Py_ssize_t
+            pos = 0;
+            if (debug) {
+                printf("Starting to loop through each element in dictionary\n");
+                printf("The size of the dictionary is: %lo\n", size);
+            }
+            prop->num_points = size;
+            while (PyDict_Next(pProx, &pos, &key, &value)) {
+                xVal = PyTuple_GetItem(key, 0);
+                yVal = PyTuple_GetItem(key, 1);
+                zVal = PyTuple_GetItem(key, 2);
+                x = PyFloat_AsDouble(xVal);
+                y = PyFloat_AsDouble(yVal);
+                z = PyFloat_AsDouble(zVal);
+                if (debug) {
+                    printf("Working on point [%f, %f, %f], the value is: %f\n", x, y, z, PyFloat_AsDouble(value));
+                }
+                if (x == -1 && PyErr_Occurred()) {
+                    PyErr_Print();
+                    fprintf(stderr, "Failed to read value %i in the proxy model.\n", i);
+                    exit(1);
+                }
+                prop->proxyModel[i][0] = x;
+                prop->proxyModel[i][1] = y;
+                prop->proxyModel[i][2] = z;
+                prop->proxyModel[i][3] = PyFloat_AsDouble(value);
+                i++;
+            }
+            if (debug) {
+                printf("Successfully read the proxy model\n");
+                printf("Successfully set the proxy model\n");
+            }
+            if (debug) {
+                printf("Successfully populated new properties structure!\n");
+                dump_properties(*prop);
+            }
+        } else {
+            Py_DECREF(pFunc);
+            Py_DECREF(pModule);
+            PyErr_Print();
+            fprintf(stderr, "Call failed\n");
+            exit(1);
+        }
+    } else {
+        if (PyErr_Occurred())
+            PyErr_Print();
+        fprintf(stderr, "Cannot find function \"%s\"\n", "rhino_configure");
+    }
+    Py_DECREF(pFunc);
+    return 0;
+
+}
+
+
 int startConfigureScript(Properties *props[2], Template template1, Template template2, int debug) {
     Properties *prop1 = props[0];
     Properties *prop2 = props[1];
@@ -585,7 +697,7 @@ int startConfigureScript(Properties *props[2], Template template1, Template temp
     templates[0] = template1;
     templates[1] = template2;
     if (template1.system == OpenCasCade || template2.system == OpenCasCade || template1.system == OpenSCAD ||
-        template2.system == OpenSCAD) {
+        template2.system == OpenSCAD || template1.system == Rhino || template2.system == Rhino) {
         PyObject * pName, *pModule;
         size_t stringsize;
         Py_SetPath(Py_DecodeLocale(
@@ -627,6 +739,16 @@ int startConfigureScript(Properties *props[2], Template template1, Template temp
             if (template2.system == OpenCasCade) {
                 if (runOCCConfigure(template2, pModule, prop2, debug) != 0) {
                     fprintf(stderr, "Failed to run OCC configure for %s\n", template2.model);
+                }
+            }
+            if (template1.system == Rhino) {
+                if (runRhinoConfigure(template1, pModule, prop1, debug) != 0) {
+                    fprintf(stderr, "Failed to run Rhino configure for %s\n", template1.model);
+                }
+            }
+            if (template2.system == Rhino) {
+                if (runRhinoConfigure(template2, pModule, prop2, debug) != 0) {
+                    fprintf(stderr, "Failed to run Rhino configure for %s\n", template2.model);
                 }
             }
             if (template1.system == MeshLab) {
@@ -686,8 +808,8 @@ int performEvaluation(Properties p1, Properties p2, char *testName, Template tem
         fprintf(stderr, "Failed to open file to perform evaluation for test %s\n", testName);
         exit(1);
     }
-    fprintf(fp, "Running test %s on model 1 %s and model 2 %s:\n\n", testName, rindex(temp1.model, '/') + 1,
-            rindex(temp2.model, '/') + 1);
+    fprintf(fp, "Running test %s on model 1 %s and model 2 %s:\n\n", testName, rindex(temp1.templateName, '/') + 1,
+            rindex(temp2.templateName, '/') + 1);
     char *systems[4] = {"Rhino", "OpenCasCade", "OpenSCAD", "MeshLab"};
 
     char vol_report[128]; // NOTE: Max buffer size of 64 characters here
@@ -790,7 +912,7 @@ int main(int argc, char *argv[]) {
     char *test_name = argv[3];
     char *endptr;
     float tol = strtof(argv[4], &endptr);
-    int debug = TRUE;
+    int debug = FALSE;
     if (*endptr != '\0') {
         fprintf(stderr, "Failed to read tolerance, only got %f\n", tol);
         exit(1);
@@ -799,8 +921,12 @@ int main(int argc, char *argv[]) {
         printf("System tolerance is: %f\n", tol);
     }
 
-    Template temp1 = readTemplate(file1, test_name, debug);
-    Template temp2 = readTemplate(file2, test_name, debug);
+    Template temp1;
+    temp1.templateName = file1;
+    temp1 = readTemplate(file1, test_name, debug);
+    Template temp2;
+    temp2.templateName = file2;
+    temp2 = readTemplate(file2, test_name, debug);
     setTolerance(temp1.algorithmPrecision + temp2.algorithmPrecision);
     if (debug) {
         dump_template(temp1);

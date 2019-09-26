@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="DTest" type="CMakeRunConfiguration" factoryName="Application" PROGRAM_PARAMS="../TestModelOCC.xml ../TestModelOCC1.xml occ_vs_occ .0001" PASS_PARENT_ENVS_2="true" PROJECT_NAME="DTest" TARGET_NAME="DTest" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="DTest" RUN_TARGET_NAME="DTest">
+  <configuration default="false" name="DTest" type="CMakeRunConfiguration" factoryName="Application" PROGRAM_PARAMS="../TestModelRhino.xml ../OCC_Coil_Model.xml rhino_vs_occ .0001" PASS_PARENT_ENVS_2="true" PROJECT_NAME="DTest" TARGET_NAME="DTest" CONFIG_NAME="Debug" RUN_TARGET_PROJECT_NAME="DTest" RUN_TARGET_NAME="DTest">
     <method v="2">
       <option name="ToolBeforeRunTask" enabled="true" actionId="Tool_External Tools_make" />
       <option name="com.jetbrains.cidr.execution.CidrBuildBeforeRunTaskProvider$BuildBeforeRunTask" enabled="true" />

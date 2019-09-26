@@ -21,13 +21,14 @@ typedef struct {
     float minimumFeatureSize;
     double bounds[2][3]; //added, Daniel  form: [[xmin, ymin, zmin], [xmax, ymax, zmax]]
     char *model; // A way to access the model, whether it be a filename or a unique id in a database (filename for now)
+    char *templateName;
 } Template;
 
 typedef struct {
     double surfaceArea;
     double volume;
     long num_points;
-    double **proxyModel;  // A 2D, n by 4 array representing a union of balls -- Should we put this in Properties??? -Yes, Duygu
+    double **proxyModel;  // A 2D, n by 4 array representing a union of balls
     // NOTE: proxyModel, because of its size, is on the heap, so free it after use
 } Properties;
 
