@@ -39,7 +39,7 @@ enum systemTypes {
 void dump_template(Template temp) {
     printf("\n========DUMPING TEMPLATE FILE=========\n");
     printf("Model: %s\n", temp.model);
-    printf("Queries: %lo\n", temp.queries);
+    printf("Queries: %lu\n", temp.queries);
     printf("Algorithm Precision: %f\n", temp.algorithmPrecision);
     printf("System: %i\n", temp.system);
     printf("Bounds: ");
@@ -58,7 +58,7 @@ void dump_properties(Properties prop) {
     printf("\n========DUMPING PROPERTIES FILE=========\n");
     printf("Surface Area: %f\n", prop.surfaceArea);
     printf("Volume: %f\n", prop.volume);
-    printf("Number of points: %lo\n", prop.num_points);
+    printf("Number of points: %lu\n", prop.num_points);
     printf("Proxy model is at: %p\n", prop.proxyModel);
     printf("========END DUMP=========\n\n");
 }
@@ -333,7 +333,7 @@ int runOCCConfigure(Template template, PyObject *pModule, Properties *prop, int 
             prop->volume = PyFloat_AsDouble(pVol);
             // The point array might be large, so we need to do some extra work
             pSize = PyLong_FromSsize_t(PyDict_Size(pProx));
-            long size = PyLong_AsLong(pSize);
+            unsigned long size = PyLong_AsUnsignedLong(pSize);
             prop->proxyModel = malloc(size * sizeof(double *));
             for (int i = 0; i < size; i++) {
                 prop->proxyModel[i] = malloc(4 * sizeof(double)); // Each entry is [x,y,z,rad]
@@ -457,7 +457,7 @@ int runSCADConfigure(Template template, PyObject *pModule, Properties *prop, int
             }
             prop->volume = PyFloat_AsDouble(pVol);
             pSize = PyLong_FromSsize_t(PyDict_Size(pProx));
-            long size = PyLong_AsLong(pSize);
+            unsigned long size = PyLong_AsUnsignedLong(pSize);
             prop->proxyModel = malloc(size * sizeof(double *));
             for (int i = 0; i < size; i++) {
                 prop->proxyModel[i] = malloc(4 * sizeof(double));
@@ -582,7 +582,7 @@ int runMeshLabConfigure(Template template, PyObject *pModule, Properties *prop, 
             }
             prop->volume = PyFloat_AsDouble(pVol);
             pSize = PyLong_FromSsize_t(PyDict_Size(pProx));
-            long size = PyLong_AsLong(pSize);
+            unsigned long size = PyLong_AsUnsignedLong(pSize);
             prop->proxyModel = malloc(size * sizeof(double *));
             for (int i = 0; i < size; i++) {
                 prop->proxyModel[i] = malloc(4 * sizeof(double));
@@ -700,7 +700,7 @@ int runRhinoConfigure(Template template, PyObject *pModule, Properties *prop, in
             }
             prop->volume = PyFloat_AsDouble(pVol);
             pSize = PyLong_FromSsize_t(PyDict_Size(pProx));
-            long size = PyLong_AsLong(pSize);
+            unsigned long size = PyLong_AsUnsignedLong(pSize);
             prop->proxyModel = malloc(size * sizeof(double *));
             for (int i = 0; i < size; i++) {
                 prop->proxyModel[i] = malloc(4 * sizeof(double));
@@ -776,9 +776,6 @@ int runRhinoConfigure(Template template, PyObject *pModule, Properties *prop, in
 int startConfigureScript(Properties *props[2], Template template1, Template template2, int debug) {
     Properties *prop1 = props[0];
     Properties *prop2 = props[1];
-    Template templates[2];
-    templates[0] = template1;
-    templates[1] = template2;
     if (template1.system == OpenCasCade || template2.system == OpenCasCade || template1.system == OpenSCAD ||
         template2.system == OpenSCAD || template1.system == Rhino || template2.system == Rhino) {
         // Create the Python Connection- Janky AF
@@ -888,7 +885,7 @@ int setTolerance(float tol) {
 }
 
 /**
- * Get's DTest's tolerance
+ * Gets DTest's tolerance
  * @return tolerance
  */
 float getTolerance() {
@@ -916,8 +913,7 @@ int performEvaluation(Properties p1, Properties p2, char *testName, Template tem
         fprintf(stderr, "Failed to open file to perform evaluation for test %s\n", testName);
         exit(1);
     }
-    fprintf(fp, "Running test %s on model 1 %s and model 2 %s:\n\n", testName, rindex(temp1.templateName, '/') + 1,
-            rindex(temp2.templateName, '/') + 1);
+    fprintf(fp, "Running test %s on model 1 %s and model 2 %s with tolerance %5f:\n\n", testName, temp1.templateName, temp2.templateName, getTolerance());
     char *systems[4] = {"Rhino", "OpenCasCade", "OpenSCAD", "MeshLab"};
 
     char vol_report[128]; // NOTE: Max buffer size of 64 characters here
@@ -964,51 +960,44 @@ int performEvaluation(Properties p1, Properties p2, char *testName, Template tem
  * @param debug A flag for whether to debug
  * @return The Hausdorff distance
  */
-double hausdorff_distance(Properties prop1, Properties prop2, int debug) {
+double hausdorff_distance(Properties *prop1, Properties *prop2, int debug) {
     if (debug) {
         printf("============STARTING HAUSDORFF DISTANCE CALCULATION===========\n");
     }
+    unsigned long n = prop1->num_points;
+    unsigned long m = prop2->num_points;
     double max_dist = 0;
     double dist;
-    double min_dist = LONG_MAX;
-    for (int i = 0; i < prop1.num_points; i++) {
-        for (int j = 0; j < prop2.num_points; j++) {
-            if (debug) {
-                printf("i=%i, j=%i\n", i, j);
-            }
-            dist = sqrt(pow((prop1.proxyModel[i][0] - prop2.proxyModel[j][0]), 2) +
-                        pow((prop1.proxyModel[i][1] - prop2.proxyModel[j][1]), 2) +
-                        pow((prop1.proxyModel[i][2] - prop2.proxyModel[j][2]), 2));
-            if (debug) {
-                printf("Working on point 1 at [%f, %f, %f] and point 2 at [%f, %f, %f] with a distance of %f.\n",
-                       prop1.proxyModel[i][0], prop1.proxyModel[i][1], prop1.proxyModel[i][2],
-                       prop2.proxyModel[j][0],
-                       prop2.proxyModel[j][1], prop2.proxyModel[j][2], dist);
-            }
+    double min_dist;
+    for (int i = 0; i < n; i++) {
+        min_dist = LONG_MAX;
+        for (int j = 0; j < m; j++) {
+            dist = sqrt(pow((prop1->proxyModel[i][0] - prop2->proxyModel[j][0]), 2) +
+                        pow((prop1->proxyModel[i][1] - prop2->proxyModel[j][1]), 2) +
+                        pow((prop1->proxyModel[i][2] - prop2->proxyModel[j][2]), 2));
             if (dist < min_dist) min_dist = dist;
         }
+        if (debug) printf("Distance for point %d is %f\n", i, min_dist);
         if (min_dist > max_dist) max_dist = min_dist;
     }
     double max_dist1 = max_dist;
+    if (debug) {
+        printf("Distance between model 1 and model 2 is %f\n", max_dist1);
+    }
     max_dist = 0;
-    min_dist = LONG_MAX;
-    for (int j = 0; j < prop2.num_points; j++) {
-        for (int i = 0; i < prop1.num_points; i++) {
-            if (debug) {
-                printf("i=%i, j=%i\n", i, j);
-            }
-            dist = sqrt(pow((prop1.proxyModel[i][0] - prop2.proxyModel[j][0]), 2) +
-                        pow((prop1.proxyModel[i][1] - prop2.proxyModel[j][1]), 2) +
-                        pow((prop1.proxyModel[i][2] - prop2.proxyModel[j][2]), 2));
-            if (debug) {
-                printf("Working on point 1 at [%f, %f, %f] and point 2 at [%f, %f, %f] with a distance of %f.\n",
-                       prop1.proxyModel[i][0], prop1.proxyModel[i][1], prop1.proxyModel[i][2],
-                       prop2.proxyModel[j][0],
-                       prop2.proxyModel[j][1], prop2.proxyModel[j][2], dist);
-            }
+    for (int j = 0; j < m; j++) {
+        min_dist = LONG_MAX;
+        for (int i = 0; i < n; i++) {
+            dist = sqrt(pow((prop1->proxyModel[i][0] - prop2->proxyModel[j][0]), 2) +
+                        pow((prop1->proxyModel[i][1] - prop2->proxyModel[j][1]), 2) +
+                        pow((prop1->proxyModel[i][2] - prop2->proxyModel[j][2]), 2));
             if (dist < min_dist) min_dist = dist;
         }
+        if (debug) printf("Distance for point %d is %f\n", j, min_dist);
         if (min_dist > max_dist) max_dist = min_dist;
+    }
+    if (debug) {
+        printf("Distance between model 2 and model 1 is %f\n", max_dist);
     }
     if (debug) {
         printf("============FINISHED HAUSDORFF DISTANCE CALCULATION===========\n");
@@ -1043,11 +1032,11 @@ int main(int argc, char *argv[]) {
 
     // Creates and populates the template files
     Template temp1;
-    temp1.templateName = file1;
     temp1 = readTemplate(file1, test_name, debug);
+    temp1.templateName = file1;
     Template temp2;
-    temp2.templateName = file2;
     temp2 = readTemplate(file2, test_name, debug);
+    temp2.templateName = file2;
     setTolerance(temp1.algorithmPrecision + temp2.algorithmPrecision);
     if (debug) {
         dump_template(temp1);
@@ -1073,7 +1062,7 @@ int main(int argc, char *argv[]) {
                prop2.volume);
     }
     // Computes the Hausdorff distance
-    double dist = hausdorff_distance(prop1, prop2, FALSE);
+    double dist = hausdorff_distance(&prop1, &prop2, debug);
     if (debug) {
         printf("Testing successful hausdorff calculation:\n: %f\n", dist);
     }

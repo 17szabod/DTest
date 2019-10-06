@@ -32,7 +32,7 @@ typedef struct {
 typedef struct {
     double surfaceArea;
     double volume;
-    long num_points;
+    unsigned long num_points;
     double **proxyModel;  // A 2D, n by 4 array representing a union of balls
     // NOTE: proxyModel, because of its size, is on the heap, so free it after use
     // Also, it would be much more efficient to handle this via some stream, as it would avoid memory access

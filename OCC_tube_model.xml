@@ -1,18 +1,18 @@
 <?xml version="1.0"?>
 <template>
-    <OS>Ubuntu 16.04</OS>
+    <OS>Ubuntu 18.02</OS>
     <CAD_System_and_Version><CAD_System>1</CAD_System> <!--0:Rhino, 1:OCC, 2:OpenSCAD--><Version>7.3.0</Version></CAD_System_and_Version>
     <API_options>1<!--{ModelingAlgorithms, FoundationClasses, ModelingData} --></API_options>
     <Script_language>1 <!--{Python, C++}--></Script_language>
     <Queries_to_use><PMQ>0</PMQ><distance>0</distance><volume>0</volume><area>0</area><surface_properties>0</surface_properties><hausdorff>1</hausdorff></Queries_to_use>
     <Unit_parameters>mm</Unit_parameters>
-    <Tolerances><Abs_tol>.00001</Abs_tol><Par_tol>.001</Par_tol><ang_tol>.000000000001</ang_tol><alg_tol>1</alg_tol></Tolerances>
+    <Tolerances><Abs_tol>.00001</Abs_tol><Par_tol>.001</Par_tol><ang_tol>.000000000001</ang_tol><alg_tol>.3</alg_tol></Tolerances>
     <Tolerance_scales>1</Tolerance_scales>
 
-    <Model_Information><FileName>/home/daniel/PycharmProjects/ICSI/data/coil.STEP</FileName><Topology>Polysurface</Topology><Model_dim>3</Model_dim><Boundary_dim>2</Boundary_dim> <!-- no boundary --><Convexity>1</Convexity> <!-- 1 for convex, 0 for non-convex --><Semilocal_simpleconnectivity>1</Semilocal_simpleconnectivity> <!--1 for connected, 0 not connected--></Model_Information>
+    <Model_Information><FileName>/home/daniel/PycharmProjects/ICSI/tube.stp</FileName><Topology>Polysurface</Topology><Model_dim>3</Model_dim><Boundary_dim>2</Boundary_dim> <!-- no boundary --><Convexity>1</Convexity> <!-- 1 for convex, 0 for non-convex --><Semilocal_simpleconnectivity>1</Semilocal_simpleconnectivity> <!--1 for connected, 0 not connected--></Model_Information>
 
     <!--Additional Information if available-->
 
     <Representation_scheme>BRep</Representation_scheme>
-    <Bounding_box_coords><xmin>-8.34</xmin><ymin>-8.38</ymin><zmin>-3</zmin><xmax>8.34</xmax><ymax>8.38</ymax><zmax>21.34</zmax></Bounding_box_coords>
+    <Bounding_box_coords><xmin>-3.5</xmin><ymin>-3.5</ymin><zmin>0</zmin><xmax>3.5</xmax><ymax>3.5</ymax><zmax>10</zmax></Bounding_box_coords>
 </template>
