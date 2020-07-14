@@ -286,7 +286,7 @@ int runOCCConfigure(Template template, PyObject *pModule, Properties *prop, int 
 
     if (pFunc && PyCallable_Check(pFunc)) {
 
-        PyObject * pArgs, *pValue, *pArg1, *pArg2, *pArg3, *pBoundArg;
+        PyObject * pArgs, *pValue, *pArg1, *pArg2;
         if (template.system != OpenCasCade) {
             fprintf(stderr, "Tried to run OCC configure on system %i, which is not OCC.\n", template.system);
             exit(1);
@@ -295,22 +295,23 @@ int runOCCConfigure(Template template, PyObject *pModule, Properties *prop, int 
             printf("Calling a new round of occ configure\n");
         }
         pArgs = PyTuple_New(9);
-        // The arguments will be: Sys_eps, alg_eps, and some access to the shape (filename?)
+        // The arguments will be: alg_tol, model
         // Convert arguments to Python types
-        pArg1 = PyFloat_FromDouble(template.systemTolerance);
-        pArg2 = PyFloat_FromDouble(template.algorithmPrecision);
-        pArg3 = PyUnicode_DecodeFSDefault(template.model);
+//        pArg1 = PyFloat_FromDouble(template.systemTolerance);
+        pArg1 = PyFloat_FromDouble(template.algorithmPrecision);
+        pArg2 = PyUnicode_DecodeFSDefault(template.model);
         PyTuple_SetItem(pArgs, 0, pArg1);
         PyTuple_SetItem(pArgs, 1, pArg2);
-        PyTuple_SetItem(pArgs, 2, pArg3);
-        for (int i = 0; i < 2; i++) {
-            for (int j = 0; j < 3; j++) {
-                pBoundArg = PyFloat_FromDouble(template.bounds[i][j]);
-                PyTuple_SetItem(pArgs, 3 + 3 * i + j, pBoundArg);
-            }
-        }
-        pValue = PyTuple_New(3);
-        // Callthe function (I believe it waits for termination without needing to call Wait(NULL)
+        // No longer need to set bounding box from
+//        PyTuple_SetItem(pArgs, 2, pArg3);
+//        for (int i = 0; i < 2; i++) {
+//            for (int j = 0; j < 3; j++) {
+//                pBoundArg = PyFloat_FromDouble(template.bounds[i][j]);
+//                PyTuple_SetItem(pArgs, 3 + 3 * i + j, pBoundArg);
+//            }
+//        }
+//        pValue = PyTuple_New(3);
+        // Call the function (I believe it waits for termination without needing to call Wait(NULL)
         pValue = PyObject_CallObject(pFunc, pArgs);
         if (pValue != NULL) {
             PyObject * pSurfAr, *pVol, *pProx;
@@ -783,20 +784,20 @@ int startConfigureScript(Properties *props[2], Template template1, Template temp
         size_t stringsize;
         // Forcibly sets the path to include all Python Libraries- would need to be changed on another system
         Py_SetPath(Py_DecodeLocale(
-                "/home/daniel/anaconda3/lib/python36.zip:/home/daniel/anaconda3/lib/python3.6:/home/daniel/anaconda3/lib/python3.6/lib-dynload:/home/daniel/anaconda3/lib/python3.6/site-packages",
+                "/home/daniel/anaconda3/envs/py37/lib/python3.7:/home/daniel/anaconda3/envs/py37/lib/python3.7/lib-dynload:/home/daniel/anaconda3/envs/py37/lib/python3.7/site-packages",
                 &stringsize));
         Py_Initialize();
         // Again, forcibly makes sure we are using the correct Python- was having issues with this,
         // and may have overdone it
-        Py_SetPythonHome(Py_DecodeLocale("/home/daniel/anaconda3/lib/python3.6m", &stringsize));
-        Py_SetProgramName(Py_DecodeLocale("/home/daniel/anaconda3/bin/python3.6", &stringsize));
+        Py_SetPythonHome(Py_DecodeLocale("/home/daniel/anaconda3/envs/py37/bin/python3.7m", &stringsize));
+        Py_SetProgramName(Py_DecodeLocale("/home/daniel/anaconda3/envs/py37/bin/python3.7", &stringsize));
         if (debug) {
             printf("The python home: %s\n", Py_EncodeLocale(Py_GetPythonHome(), &stringsize));
             printf("The exec prefix: %s\n", Py_EncodeLocale(Py_GetPrefix(), &stringsize));
             printf("The program name: %s\n", Py_EncodeLocale(Py_GetProgramName(), &stringsize));
             printf("The full paths in the program: %s\n", Py_EncodeLocale(Py_GetPath(), &stringsize));
         }
-        // This one is necessary, this is how it knows where your Python scripts are
+        // This one is necessary; this is how it knows where your Python scripts are
         PyRun_SimpleString("import sys\n"
                            "sys.path.append(\"/home/daniel/PycharmProjects/ICSI\")\n"
                            "sys.path.append(\"/home/daniel/PycharmProjects/py_oce\")\n");
@@ -1018,10 +1019,10 @@ int main(int argc, char *argv[]) {
     }
     char *file1 = argv[1];
     char *file2 = argv[2];
-    char *test_name = argv[3];
+    char *test_name = argv[3];  // make testname work as in paper
     char *endptr;
     float tol = strtof(argv[4], &endptr);
-    int debug = FALSE;
+    int debug = TRUE;
     if (*endptr != '\0') {
         fprintf(stderr, "Failed to read tolerance, only got %f\n", tol);
         exit(1);
@@ -1037,7 +1038,8 @@ int main(int argc, char *argv[]) {
     Template temp2;
     temp2 = readTemplate(file2, test_name, debug);
     temp2.templateName = file2;
-    setTolerance(temp1.algorithmPrecision + temp2.algorithmPrecision);
+//    setTolerance(temp1.algorithmPrecision + temp2.algorithmPrecision);
+    setTolerance(tol);
     if (debug) {
         dump_template(temp1);
         dump_template(temp2);
@@ -1084,3 +1086,6 @@ int main(int argc, char *argv[]) {
     free(prop2.proxyModel);
     return 0;
 };
+
+// Two separate graphs
+// Include the actual volumes of the systems
